@@ -1,0 +1,381 @@
+"use client";
+
+import { create } from "zustand";
+import { nanoid } from "nanoid";
+import { clamp } from "./utils";
+import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc } from "./pdf/pdfium/registry";
+import type { PdfiumDoc } from "./pdf/pdfium/doc";
+import {
+  listPageObjects,
+  setObjectText,
+  setObjectFill,
+  setObjectStrokeColor,
+  setObjectStrokeWidth,
+  setObjectFontSize,
+  moveObject,
+  deleteObject as deletePdfObject,
+} from "./pdf/pdfium/objects";
+import type {
+  Annotation,
+  PageItem,
+  PageObject,
+  PdfSource,
+  RGBA,
+  Rotation,
+  SourceId,
+  ToolId,
+} from "./pdf/types";
+
+export interface ToolSettings {
+  color: string;
+  strokeWidth: number;
+  fontSize: number;
+  opacity: number;
+  fill: boolean;
+}
+
+export type Status = "empty" | "loading" | "ready" | "error";
+
+interface EditorState {
+  status: Status;
+  error: string | null;
+  fileName: string;
+  sources: Record<SourceId, PdfSource>;
+  pages: PageItem[];
+
+  zoom: number;
+  activeTool: ToolId;
+  tool: ToolSettings;
+
+  selectedPageId: string | null;
+  selectedAnnotationId: string | null;
+
+  // ----- existing-content editing (PDFium page objects) -----
+  /** Cache of enumerated page objects, keyed by page id (lazy in edit mode). */
+  pageObjects: Record<string, PageObject[]>;
+  selectedObject: { pageId: string; index: number } | null;
+
+  // ----- document lifecycle -----
+  loadFile: (file: File) => Promise<void>;
+  mergeFile: (file: File) => Promise<void>;
+  reset: () => void;
+
+  // ----- view / tools -----
+  setZoom: (z: number) => void;
+  zoomBy: (delta: number) => void;
+  setTool: (t: ToolId) => void;
+  setToolSettings: (patch: Partial<ToolSettings>) => void;
+
+  // ----- selection -----
+  selectPage: (id: string | null) => void;
+  selectAnnotation: (id: string | null) => void;
+
+  // ----- page ops -----
+  rotatePage: (id: string, dir: 1 | -1) => void;
+  deletePage: (id: string) => void;
+  movePage: (from: number, to: number) => void;
+  insertBlankPage: (afterIndex: number) => void;
+  duplicatePage: (id: string) => void;
+
+  // ----- annotation ops -----
+  addAnnotation: (pageId: string, ann: Annotation) => void;
+  updateAnnotation: (pageId: string, ann: Annotation) => void;
+  removeAnnotation: (pageId: string, annId: string) => void;
+
+  // ----- existing-content object ops -----
+  refreshObjects: (pageId: string) => Promise<void>;
+  selectObject: (sel: { pageId: string; index: number } | null) => void;
+  editObjectText: (pageId: string, index: number, text: string) => Promise<void>;
+  setObjectColor: (pageId: string, index: number, color: RGBA, which: "fill" | "stroke") => Promise<void>;
+  setObjectStrokeWidthValue: (pageId: string, index: number, width: number) => Promise<void>;
+  setObjectFontSizeValue: (pageId: string, index: number, current: number, next: number) => Promise<void>;
+  moveObjectBy: (pageId: string, index: number, dxOverlay: number, dyOverlay: number) => Promise<void>;
+  deleteObject: (pageId: string, index: number) => Promise<void>;
+}
+
+const DEFAULT_TOOL: ToolSettings = {
+  color: "#ef4444",
+  strokeWidth: 3,
+  fontSize: 16,
+  opacity: 1,
+  fill: false,
+};
+
+/** Read a File into a Uint8Array. */
+async function readBytes(file: File): Promise<Uint8Array> {
+  return new Uint8Array(await file.arrayBuffer());
+}
+
+/** Build PageItems for every page of a freshly opened source. */
+async function pagesForSource(source: PdfSource): Promise<PageItem[]> {
+  const doc = await openPdfiumDoc(source.id, source.bytes);
+  const pages: PageItem[] = [];
+  for (let i = 0; i < doc.pageCount; i++) {
+    const { width, height } = doc.pageSize(i);
+    pages.push({
+      id: nanoid(),
+      sourceId: source.id,
+      sourcePageIndex: i,
+      // Intrinsic /Rotate was normalized to 0 in the PDFium doc; fold the
+      // original rotation into our model as the single source of truth.
+      rotation: (((doc.intrinsicRotationDeg(i) % 360) + 360) % 360) as Rotation,
+      width,
+      height,
+      annotations: [],
+      editVersion: 0,
+    });
+  }
+  return pages;
+}
+
+const ROTATIONS: Rotation[] = [0, 90, 180, 270];
+
+export const useEditor = create<EditorState>((set, get) => ({
+  status: "empty",
+  error: null,
+  fileName: "",
+  sources: {},
+  pages: [],
+
+  zoom: 1,
+  activeTool: "select",
+  tool: { ...DEFAULT_TOOL },
+
+  selectedPageId: null,
+  selectedAnnotationId: null,
+
+  pageObjects: {},
+  selectedObject: null,
+
+  loadFile: async (file) => {
+    set({ status: "loading", error: null });
+    try {
+      const bytes = await readBytes(file);
+      const source: PdfSource = { id: nanoid(), name: file.name, bytes };
+      const pages = await pagesForSource(source);
+      set({
+        status: "ready",
+        fileName: file.name,
+        sources: { [source.id]: source },
+        pages,
+        selectedPageId: pages[0]?.id ?? null,
+        selectedAnnotationId: null,
+        pageObjects: {},
+        selectedObject: null,
+      });
+    } catch (e) {
+      set({ status: "error", error: e instanceof Error ? e.message : "Failed to open PDF" });
+    }
+  },
+
+  mergeFile: async (file) => {
+    try {
+      const bytes = await readBytes(file);
+      const source: PdfSource = { id: nanoid(), name: file.name, bytes };
+      const newPages = await pagesForSource(source);
+      set((s) => ({
+        sources: { ...s.sources, [source.id]: source },
+        pages: [...s.pages, ...newPages],
+      }));
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : "Failed to merge PDF" });
+    }
+  },
+
+  reset: () => {
+    Object.keys(get().sources).forEach(dropPdfiumDoc);
+    set({
+      status: "empty",
+      error: null,
+      fileName: "",
+      sources: {},
+      pages: [],
+      selectedPageId: null,
+      selectedAnnotationId: null,
+      pageObjects: {},
+      selectedObject: null,
+      zoom: 1,
+      activeTool: "select",
+    });
+  },
+
+  setZoom: (z) => set({ zoom: clamp(z, 0.25, 6) }),
+  zoomBy: (delta) => set((s) => ({ zoom: clamp(s.zoom + delta, 0.25, 6) })),
+  setTool: (t) =>
+    set({
+      activeTool: t,
+      selectedAnnotationId: null,
+      selectedObject: t === "edit" ? get().selectedObject : null,
+    }),
+  setToolSettings: (patch) => set((s) => ({ tool: { ...s.tool, ...patch } })),
+
+  selectPage: (id) => set({ selectedPageId: id }),
+  selectAnnotation: (id) => set({ selectedAnnotationId: id }),
+
+  rotatePage: (id, dir) =>
+    set((s) => ({
+      pages: s.pages.map((p) => {
+        if (p.id !== id) return p;
+        const idx = ROTATIONS.indexOf(p.rotation);
+        const next = ROTATIONS[(idx + (dir === 1 ? 1 : 3)) % 4];
+        return { ...p, rotation: next };
+      }),
+    })),
+
+  deletePage: (id) =>
+    set((s) => {
+      const pages = s.pages.filter((p) => p.id !== id);
+      const selectedPageId =
+        s.selectedPageId === id ? pages[0]?.id ?? null : s.selectedPageId;
+      return { pages, selectedPageId };
+    }),
+
+  movePage: (from, to) =>
+    set((s) => {
+      if (from === to || from < 0 || to < 0 || from >= s.pages.length || to >= s.pages.length)
+        return s;
+      const pages = s.pages.slice();
+      const [moved] = pages.splice(from, 1);
+      pages.splice(to, 0, moved);
+      return { pages };
+    }),
+
+  insertBlankPage: (afterIndex) =>
+    set((s) => {
+      const ref = s.pages[afterIndex];
+      const blank: PageItem = {
+        id: nanoid(),
+        sourceId: null,
+        sourcePageIndex: 0,
+        rotation: 0,
+        width: ref?.width ?? 595, // default A4-ish (in points)
+        height: ref?.height ?? 842,
+        annotations: [],
+        editVersion: 0,
+      };
+      const pages = s.pages.slice();
+      pages.splice(afterIndex + 1, 0, blank);
+      return { pages, selectedPageId: blank.id };
+    }),
+
+  duplicatePage: (id) =>
+    set((s) => {
+      const idx = s.pages.findIndex((p) => p.id === id);
+      if (idx < 0) return s;
+      const orig = s.pages[idx];
+      const copy: PageItem = {
+        ...orig,
+        id: nanoid(),
+        annotations: orig.annotations.map((a) => ({ ...a, id: nanoid() })),
+      };
+      const pages = s.pages.slice();
+      pages.splice(idx + 1, 0, copy);
+      return { pages };
+    }),
+
+  addAnnotation: (pageId, ann) =>
+    set((s) => ({
+      pages: s.pages.map((p) =>
+        p.id === pageId ? { ...p, annotations: [...p.annotations, ann] } : p,
+      ),
+      selectedAnnotationId: ann.id,
+    })),
+
+  updateAnnotation: (pageId, ann) =>
+    set((s) => ({
+      pages: s.pages.map((p) =>
+        p.id === pageId
+          ? { ...p, annotations: p.annotations.map((a) => (a.id === ann.id ? ann : a)) }
+          : p,
+      ),
+    })),
+
+  removeAnnotation: (pageId, annId) =>
+    set((s) => ({
+      pages: s.pages.map((p) =>
+        p.id === pageId
+          ? { ...p, annotations: p.annotations.filter((a) => a.id !== annId) }
+          : p,
+      ),
+      selectedAnnotationId:
+        s.selectedAnnotationId === annId ? null : s.selectedAnnotationId,
+    })),
+
+  // ----- existing-content object ops -----
+  refreshObjects: async (pageId) => {
+    const page = get().pages.find((p) => p.id === pageId);
+    if (!page?.sourceId) return;
+    const docP = getPdfiumDoc(page.sourceId);
+    if (!docP) return;
+    const doc = await docP;
+    const objects = listPageObjects(doc, page.sourcePageIndex);
+    set((s) => ({ pageObjects: { ...s.pageObjects, [pageId]: objects } }));
+  },
+
+  selectObject: (sel) => set({ selectedObject: sel }),
+
+  // All mutators follow the same shape: resolve the source doc, mutate, rewrite
+  // the content stream, bump editVersion (to re-render the canvas), and refresh
+  // the cached object list (bounds/props change after edits).
+  editObjectText: async (pageId, index, text) => {
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      setObjectText(doc, pageIndex, index, text),
+    );
+  },
+
+  setObjectColor: async (pageId, index, color, which) => {
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      which === "fill"
+        ? setObjectFill(doc, pageIndex, index, color)
+        : setObjectStrokeColor(doc, pageIndex, index, color),
+    );
+  },
+
+  setObjectStrokeWidthValue: async (pageId, index, width) => {
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      setObjectStrokeWidth(doc, pageIndex, index, width),
+    );
+  },
+
+  setObjectFontSizeValue: async (pageId, index, current, next) => {
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      setObjectFontSize(doc, pageIndex, index, current, next),
+    );
+  },
+
+  moveObjectBy: async (pageId, index, dxOverlay, dyOverlay) => {
+    // Overlay space is top-left origin; PDF is bottom-left, so flip dy.
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      moveObject(doc, pageIndex, index, dxOverlay, -dyOverlay),
+    );
+  },
+
+  deleteObject: async (pageId, index) => {
+    await mutateObject(get, set, pageId, (doc, pageIndex) =>
+      deletePdfObject(doc, pageIndex, index),
+    );
+    set({ selectedObject: null });
+  },
+}));
+
+/** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
+async function mutateObject(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
+  pageId: string,
+  mutate: (doc: PdfiumDoc, pageIndex: number) => void,
+) {
+  const page = get().pages.find((p) => p.id === pageId);
+  if (!page?.sourceId) return;
+  const docP = getPdfiumDoc(page.sourceId);
+  if (!docP) return;
+  const doc = await docP;
+  mutate(doc, page.sourcePageIndex);
+  doc.regenerate(page.sourcePageIndex);
+  set((s) => ({
+    pages: s.pages.map((p) =>
+      p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p,
+    ),
+  }));
+  await get().refreshObjects(pageId);
+}
