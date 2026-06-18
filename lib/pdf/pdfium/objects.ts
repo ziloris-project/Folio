@@ -105,7 +105,7 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
     const type = I.FPDFPageObj_GetType(obj);
     const bbox = readBounds(I, obj);
     if (type === OBJ_TEXT) {
-      out.push({ index: i, type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj), color: readFill(I, obj) });
+      out.push({ index: i, type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj), color: readFill(I, obj), fontName: readFontName(I, obj) });
     } else if (type === OBJ_PATH) {
       out.push({ index: i, type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
     } else if (type === OBJ_IMAGE) {
@@ -188,4 +188,51 @@ export function deleteObject(doc: PdfiumDoc, pageIndex: number, objIndex: number
   const o = I.FPDFPage_GetObject(page, objIndex);
   I.FPDFPage_RemoveObject(page, o);
   I.FPDFPageObj_Destroy(o);
+}
+
+/**
+ * Replace a text run with a new one drawn in a standard-14 font at an exact
+ * on-page size, preserving position, rotation and color. This is the reliable
+ * path when the original (often subset) font can't render newly-typed glyphs,
+ * and it sets font size exactly (no matrix-scale approximation).
+ *
+ * Returns the index of the new object (appended on top), or -1 on failure.
+ */
+export function recreateTextObject(
+  doc: PdfiumDoc,
+  pageIndex: number,
+  objIndex: number,
+  opts: { fontName: string; text: string; fontSize: number; color: RGBA },
+): number {
+  const I = doc.I;
+  const page = doc.pageHandle(pageIndex);
+  const old = I.FPDFPage_GetObject(page, objIndex);
+
+  // Decompose the old matrix into rotation (unit scale) + translation so the
+  // new object keeps orientation/position but takes its size from CreateTextObj.
+  const [a, b, c, d, e, f] = getMatrix(I, old);
+  const scale = Math.hypot(c, d) || 1;
+  const unit: [number, number, number, number, number, number] = [
+    a / scale, b / scale, c / scale, d / scale, e, f,
+  ];
+
+  const font = I.FPDFText_LoadStandardFont(doc.handle, opts.fontName);
+  if (!font) return -1;
+  const obj = I.FPDFPageObj_CreateTextObj(doc.handle, font, opts.fontSize);
+  if (!obj) return -1;
+
+  const w = writeWideString(I, opts.text);
+  try {
+    I.FPDFText_SetText(obj, w);
+  } finally {
+    free(I, w);
+  }
+  I.FPDFPageObj_SetFillColor(obj, opts.color.r, opts.color.g, opts.color.b, opts.color.a);
+  setMatrix(I, obj, unit);
+
+  I.FPDFPage_RemoveObject(page, old);
+  I.FPDFPageObj_Destroy(old);
+  I.FPDFPage_InsertObject(page, obj);
+
+  return I.FPDFPage_CountObjects(page) - 1; // appended on top
 }
