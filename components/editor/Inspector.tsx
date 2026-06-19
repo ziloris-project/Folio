@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
 import { useEditor } from "@/lib/store";
-import type { PageObject, RGBA } from "@/lib/pdf/types";
+import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
 
 function toHex({ r, g, b }: RGBA) {
   return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -68,6 +68,7 @@ export function Inspector() {
   const setObjectColor = useEditor((s) => s.setObjectColor);
   const setObjectStrokeWidthValue = useEditor((s) => s.setObjectStrokeWidthValue);
   const setObjectFontSizeValue = useEditor((s) => s.setObjectFontSizeValue);
+  const setObjectFontName = useEditor((s) => s.setObjectFontName);
   const deleteObject = useEditor((s) => s.deleteObject);
 
   const obj: PageObject | undefined = selectedObject
@@ -126,6 +127,27 @@ export function Inspector() {
                 label="Color" color={obj.color}
                 onChange={(c) => void setObjectColor(selectedObject.pageId, obj.index, c, "fill")}
               />
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <span className="w-14 shrink-0">Font</span>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) void setObjectFontName(selectedObject.pageId, obj.index, e.target.value);
+                  }}
+                  className="flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-foreground outline-none focus:border-accent"
+                >
+                  <option value="" disabled>
+                    {obj.fontName || "Replace font…"}
+                  </option>
+                  {STANDARD_FONTS.map((fn) => (
+                    <option key={fn} value={fn}>{fn}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-[11px] text-muted">
+                Replacing the font guarantees typed characters render (the original may be a
+                subset font missing glyphs).
+              </p>
             </>
           )}
 
