@@ -14,6 +14,7 @@ import {
   setObjectFontSize,
   moveObject,
   deleteObject as deletePdfObject,
+  recreateTextObject,
 } from "./pdf/pdfium/objects";
 import type {
   Annotation,
@@ -89,6 +90,7 @@ interface EditorState {
   setObjectColor: (pageId: string, index: number, color: RGBA, which: "fill" | "stroke") => Promise<void>;
   setObjectStrokeWidthValue: (pageId: string, index: number, width: number) => Promise<void>;
   setObjectFontSizeValue: (pageId: string, index: number, current: number, next: number) => Promise<void>;
+  setObjectFontName: (pageId: string, index: number, fontName: string) => Promise<void>;
   moveObjectBy: (pageId: string, index: number, dxOverlay: number, dyOverlay: number) => Promise<void>;
   deleteObject: (pageId: string, index: number) => Promise<void>;
 }
@@ -355,6 +357,31 @@ export const useEditor = create<EditorState>((set, get) => ({
       deletePdfObject(doc, pageIndex, index),
     );
     set({ selectedObject: null });
+  },
+
+  // Recreate a text run in a standard font (guarantees typed glyphs render and
+  // sets an exact size). The object moves to the top of the z-order, so we
+  // follow the selection to its new index.
+  setObjectFontName: async (pageId, index, fontName) => {
+    const page = get().pages.find((p) => p.id === pageId);
+    if (!page?.sourceId) return;
+    const target = get().pageObjects[pageId]?.find((o) => o.index === index);
+    if (!target || target.type !== "text") return;
+    const docP = getPdfiumDoc(page.sourceId);
+    if (!docP) return;
+    const doc = await docP;
+    const newIndex = recreateTextObject(doc, page.sourcePageIndex, index, {
+      fontName,
+      text: target.text,
+      fontSize: target.fontSize,
+      color: target.color,
+    });
+    doc.regenerate(page.sourcePageIndex);
+    set((s) => ({
+      pages: s.pages.map((p) => (p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p)),
+    }));
+    await get().refreshObjects(pageId);
+    if (newIndex >= 0) set({ selectedObject: { pageId, index: newIndex } });
   },
 }));
 
