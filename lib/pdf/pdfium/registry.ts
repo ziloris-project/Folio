@@ -27,3 +27,15 @@ export function dropPdfiumDoc(sourceId: string): void {
   docs.delete(sourceId);
   d?.then((doc) => doc.close()).catch(() => {});
 }
+
+/**
+ * Replace a source's loaded doc with one parsed from `bytes` (used by undo/redo
+ * to restore a previous document state). Closes the previous instance.
+ */
+export async function reloadPdfiumDoc(sourceId: string, bytes: Uint8Array): Promise<void> {
+  const prev = docs.get(sourceId);
+  const next = PdfiumDoc.load(bytes);
+  docs.set(sourceId, next);
+  await next;
+  prev?.then((doc) => doc.close()).catch(() => {});
+}
