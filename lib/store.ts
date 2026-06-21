@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
-import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc } from "./pdf/pdfium/registry";
+import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import type { PdfiumDoc } from "./pdf/pdfium/doc";
 import {
   listPageObjects,
@@ -56,6 +56,12 @@ interface EditorState {
   pageObjects: Record<string, PageObject[]>;
   selectedObject: { pageId: string; index: number } | null;
 
+  // ----- undo/redo history -----
+  /** Live per-source document bytes; new ref after each content edit. */
+  sourceBytes: Record<SourceId, Uint8Array>;
+  past: Snapshot[];
+  future: Snapshot[];
+
   // ----- document lifecycle -----
   loadFile: (file: File) => Promise<void>;
   mergeFile: (file: File) => Promise<void>;
@@ -93,7 +99,22 @@ interface EditorState {
   setObjectFontName: (pageId: string, index: number, fontName: string) => Promise<void>;
   moveObjectBy: (pageId: string, index: number, dxOverlay: number, dyOverlay: number) => Promise<void>;
   deleteObject: (pageId: string, index: number) => Promise<void>;
+
+  // ----- undo/redo -----
+  /** Capture a history checkpoint before a mutation (call once per user gesture). */
+  beginHistory: () => void;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
 }
+
+/** A restorable editor checkpoint. sourceBytes shares immutable Uint8Array refs
+ *  with the live state, so unchanged sources cost nothing to snapshot. */
+interface Snapshot {
+  pages: PageItem[];
+  sourceBytes: Record<SourceId, Uint8Array>;
+}
+
+const HISTORY_LIMIT = 60;
 
 const DEFAULT_TOOL: ToolSettings = {
   color: "#ef4444",
@@ -149,6 +170,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   pageObjects: {},
   selectedObject: null,
 
+  sourceBytes: {},
+  past: [],
+  future: [],
+
   loadFile: async (file) => {
     set({ status: "loading", error: null });
     try {
@@ -164,6 +189,9 @@ export const useEditor = create<EditorState>((set, get) => ({
         selectedAnnotationId: null,
         pageObjects: {},
         selectedObject: null,
+        sourceBytes: { [source.id]: source.bytes },
+        past: [],
+        future: [],
       });
     } catch (e) {
       set({ status: "error", error: e instanceof Error ? e.message : "Failed to open PDF" });
@@ -172,12 +200,14 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   mergeFile: async (file) => {
     try {
+      get().beginHistory();
       const bytes = await readBytes(file);
       const source: PdfSource = { id: nanoid(), name: file.name, bytes };
       const newPages = await pagesForSource(source);
       set((s) => ({
         sources: { ...s.sources, [source.id]: source },
         pages: [...s.pages, ...newPages],
+        sourceBytes: { ...s.sourceBytes, [source.id]: source.bytes },
       }));
     } catch (e) {
       set({ error: e instanceof Error ? e.message : "Failed to merge PDF" });
@@ -196,6 +226,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       selectedAnnotationId: null,
       pageObjects: {},
       selectedObject: null,
+      sourceBytes: {},
+      past: [],
+      future: [],
       zoom: 1,
       activeTool: "select",
     });
@@ -214,7 +247,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   selectPage: (id) => set({ selectedPageId: id }),
   selectAnnotation: (id) => set({ selectedAnnotationId: id }),
 
-  rotatePage: (id, dir) =>
+  rotatePage: (id, dir) => {
+    get().beginHistory();
     set((s) => ({
       pages: s.pages.map((p) => {
         if (p.id !== id) return p;
@@ -222,17 +256,21 @@ export const useEditor = create<EditorState>((set, get) => ({
         const next = ROTATIONS[(idx + (dir === 1 ? 1 : 3)) % 4];
         return { ...p, rotation: next };
       }),
-    })),
+    }));
+  },
 
-  deletePage: (id) =>
+  deletePage: (id) => {
+    get().beginHistory();
     set((s) => {
       const pages = s.pages.filter((p) => p.id !== id);
       const selectedPageId =
         s.selectedPageId === id ? pages[0]?.id ?? null : s.selectedPageId;
       return { pages, selectedPageId };
-    }),
+    });
+  },
 
-  movePage: (from, to) =>
+  movePage: (from, to) => {
+    get().beginHistory();
     set((s) => {
       if (from === to || from < 0 || to < 0 || from >= s.pages.length || to >= s.pages.length)
         return s;
@@ -240,9 +278,11 @@ export const useEditor = create<EditorState>((set, get) => ({
       const [moved] = pages.splice(from, 1);
       pages.splice(to, 0, moved);
       return { pages };
-    }),
+    });
+  },
 
-  insertBlankPage: (afterIndex) =>
+  insertBlankPage: (afterIndex) => {
+    get().beginHistory();
     set((s) => {
       const ref = s.pages[afterIndex];
       const blank: PageItem = {
@@ -258,9 +298,11 @@ export const useEditor = create<EditorState>((set, get) => ({
       const pages = s.pages.slice();
       pages.splice(afterIndex + 1, 0, blank);
       return { pages, selectedPageId: blank.id };
-    }),
+    });
+  },
 
-  duplicatePage: (id) =>
+  duplicatePage: (id) => {
+    get().beginHistory();
     set((s) => {
       const idx = s.pages.findIndex((p) => p.id === id);
       if (idx < 0) return s;
@@ -273,16 +315,21 @@ export const useEditor = create<EditorState>((set, get) => ({
       const pages = s.pages.slice();
       pages.splice(idx + 1, 0, copy);
       return { pages };
-    }),
+    });
+  },
 
-  addAnnotation: (pageId, ann) =>
+  addAnnotation: (pageId, ann) => {
+    get().beginHistory();
     set((s) => ({
       pages: s.pages.map((p) =>
         p.id === pageId ? { ...p, annotations: [...p.annotations, ann] } : p,
       ),
       selectedAnnotationId: ann.id,
-    })),
+    }));
+  },
 
+  // No history checkpoint here: continuous drags/typing call beginHistory() once
+  // at gesture start (see useMoveDrag / TextNode), so each gesture is one undo.
   updateAnnotation: (pageId, ann) =>
     set((s) => ({
       pages: s.pages.map((p) =>
@@ -292,7 +339,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       ),
     })),
 
-  removeAnnotation: (pageId, annId) =>
+  removeAnnotation: (pageId, annId) => {
+    get().beginHistory();
     set((s) => ({
       pages: s.pages.map((p) =>
         p.id === pageId
@@ -301,7 +349,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       ),
       selectedAnnotationId:
         s.selectedAnnotationId === annId ? null : s.selectedAnnotationId,
-    })),
+    }));
+  },
 
   // ----- existing-content object ops -----
   refreshObjects: async (pageId) => {
@@ -367,9 +416,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!page?.sourceId) return;
     const target = get().pageObjects[pageId]?.find((o) => o.index === index);
     if (!target || target.type !== "text") return;
-    const docP = getPdfiumDoc(page.sourceId);
+    const sourceId = page.sourceId;
+    const docP = getPdfiumDoc(sourceId);
     if (!docP) return;
     const doc = await docP;
+    get().beginHistory();
     const newIndex = recreateTextObject(doc, page.sourcePageIndex, index, {
       fontName,
       text: target.text,
@@ -379,11 +430,59 @@ export const useEditor = create<EditorState>((set, get) => ({
     doc.regenerate(page.sourcePageIndex);
     set((s) => ({
       pages: s.pages.map((p) => (p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p)),
+      sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() },
     }));
     await get().refreshObjects(pageId);
     if (newIndex >= 0) set({ selectedObject: { pageId, index: newIndex } });
   },
+
+  // ----- undo/redo -----
+  beginHistory: () =>
+    set((s) => ({
+      past: [...s.past, { pages: s.pages, sourceBytes: s.sourceBytes }].slice(-HISTORY_LIMIT),
+      future: [],
+    })),
+
+  undo: async () => {
+    const { past } = get();
+    if (!past.length) return;
+    const snap = past[past.length - 1];
+    const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
+    await applySnapshot(get, set, snap);
+    set((s) => ({ past: s.past.slice(0, -1), future: [...s.future, current] }));
+  },
+
+  redo: async () => {
+    const { future } = get();
+    if (!future.length) return;
+    const snap = future[future.length - 1];
+    const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
+    await applySnapshot(get, set, snap);
+    set((s) => ({ future: s.future.slice(0, -1), past: [...s.past, current] }));
+  },
 }));
+
+/** Restore a snapshot: reload any source whose bytes changed, then swap pages. */
+async function applySnapshot(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  snap: Snapshot,
+) {
+  const live = get().sourceBytes;
+  for (const id of Object.keys(snap.sourceBytes)) {
+    if (snap.sourceBytes[id] !== live[id]) {
+      await reloadPdfiumDoc(id, snap.sourceBytes[id]);
+    }
+  }
+  set({
+    pages: snap.pages,
+    sourceBytes: snap.sourceBytes,
+    // Object indices/bitmaps are now stale; clear caches and selection.
+    pageObjects: {},
+    selectedObject: null,
+    selectedAnnotationId: null,
+  });
+}
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
 async function mutateObject(
@@ -394,15 +493,19 @@ async function mutateObject(
 ) {
   const page = get().pages.find((p) => p.id === pageId);
   if (!page?.sourceId) return;
-  const docP = getPdfiumDoc(page.sourceId);
+  const sourceId = page.sourceId;
+  const docP = getPdfiumDoc(sourceId);
   if (!docP) return;
   const doc = await docP;
+  get().beginHistory(); // checkpoint pre-edit state (pages + current source bytes)
   mutate(doc, page.sourcePageIndex);
   doc.regenerate(page.sourcePageIndex);
   set((s) => ({
     pages: s.pages.map((p) =>
       p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p,
     ),
+    // Record the new doc bytes as a fresh ref so undo can detect the change.
+    sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() },
   }));
   await get().refreshObjects(pageId);
 }
