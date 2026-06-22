@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { TextAnnotation } from "@/lib/pdf/types";
+import { useEditor } from "@/lib/store";
 import { useMoveDrag } from "./useMoveDrag";
 
 interface Props {
@@ -75,7 +76,11 @@ export function TextNode({
         if (eraser) { e.stopPropagation(); onErase(); return; }
         onMoveDown(e);
       }}
-      onDoubleClick={() => !eraser && setEditing(true)}
+      onDoubleClick={() => {
+        if (eraser) return;
+        useEditor.getState().beginHistory(); // checkpoint before inline editing
+        setEditing(true);
+      }}
     >
       {ann.text || <span style={{ opacity: 0.4 }}>Text</span>}
     </div>

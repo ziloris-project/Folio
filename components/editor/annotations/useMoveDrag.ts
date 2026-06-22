@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { toPagePoint } from "@/lib/pdf/coords";
+import { useEditor } from "@/lib/store";
 
 interface Options {
   overlayRef: RefObject<HTMLElement | null>;
@@ -28,6 +29,7 @@ export function useMoveDrag({ overlayRef, rotation, mediaW, mediaH, zoom, onStar
       const el = overlayRef.current;
       if (!el) return;
       e.stopPropagation();
+      useEditor.getState().beginHistory(); // one undo step per drag gesture
       onStart();
       start.current = toPagePoint(e, el, rotation, mediaW, mediaH, zoom);
       (e.target as Element).setPointerCapture?.(e.pointerId);
