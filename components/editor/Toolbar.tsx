@@ -6,7 +6,7 @@ import * as Separator from "@radix-ui/react-separator";
 import {
   MousePointer2, Type, Pencil, Highlighter, Square, Circle, Minus,
   ArrowUpRight, Image as ImageIcon, PenTool, Eraser, FolderOpen, FilePlus2,
-  Download, ZoomIn, ZoomOut, Loader2, TextCursorInput,
+  Download, ZoomIn, ZoomOut, Loader2, TextCursorInput, Undo2, Redo2,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useEditor } from "@/lib/store";
@@ -61,6 +61,10 @@ export function Toolbar() {
   const fileName = useEditor((s) => s.fileName);
   const reset = useEditor((s) => s.reset);
   const mergeFile = useEditor((s) => s.mergeFile);
+  const undo = useEditor((s) => s.undo);
+  const redo = useEditor((s) => s.redo);
+  const canUndo = useEditor((s) => s.past.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0);
 
   const openRef = useRef<HTMLInputElement>(null);
   const mergeRef = useRef<HTMLInputElement>(null);
@@ -133,6 +137,22 @@ export function Toolbar() {
           <Tooltip label="Append a PDF (merge)">
             <IconButton onClick={() => mergeRef.current?.click()}>
               <FilePlus2 className="h-4.5 w-4.5" />
+            </IconButton>
+          </Tooltip>
+        </div>
+
+        <Separator.Root orientation="vertical" className="mx-1 h-6 w-px bg-border" />
+
+        {/* Undo / redo */}
+        <div className="flex items-center gap-1">
+          <Tooltip label="Undo (Ctrl+Z)">
+            <IconButton onClick={() => void undo()} disabled={!canUndo}>
+              <Undo2 className="h-4.5 w-4.5" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip label="Redo (Ctrl+Y)">
+            <IconButton onClick={() => void redo()} disabled={!canRedo}>
+              <Redo2 className="h-4.5 w-4.5" />
             </IconButton>
           </Tooltip>
         </div>
