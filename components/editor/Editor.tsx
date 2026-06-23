@@ -48,6 +48,17 @@ export function Editor() {
         }
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) void st.redo();
+        else void st.undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        void st.redo();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "=") {
         e.preventDefault();
         st.zoomBy(0.2);
