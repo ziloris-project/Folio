@@ -191,12 +191,17 @@ export function deleteObject(doc: PdfiumDoc, pageIndex: number, objIndex: number
 }
 
 /**
- * Replace a text run with a new one drawn in a standard-14 font at an exact
+ * Replace a text run with new text drawn in a standard-14 font at an exact
  * on-page size, preserving position, rotation and color. This is the reliable
  * path when the original (often subset) font can't render newly-typed glyphs,
  * and it sets font size exactly (no matrix-scale approximation).
  *
- * Returns the index of the new object (appended on top), or -1 on failure.
+ * Multi-line support: the text may contain newlines; each line becomes its own
+ * text object stacked downward by 1.2x the font size, in the run's own rotation
+ * frame. (Full reflow of surrounding existing content is not possible — PDFs
+ * have no paragraph model — but explicit line breaks are honored.)
+ *
+ * Returns the index of the last created object (appended on top), or -1.
  */
 export function recreateTextObject(
   doc: PdfiumDoc,
@@ -208,31 +213,39 @@ export function recreateTextObject(
   const page = doc.pageHandle(pageIndex);
   const old = I.FPDFPage_GetObject(page, objIndex);
 
-  // Decompose the old matrix into rotation (unit scale) + translation so the
-  // new object keeps orientation/position but takes its size from CreateTextObj.
+  // Decompose the old matrix into rotation (unit scale) + translation so new
+  // objects keep orientation/position but take their size from CreateTextObj.
   const [a, b, c, d, e, f] = getMatrix(I, old);
   const scale = Math.hypot(c, d) || 1;
-  const unit: [number, number, number, number, number, number] = [
-    a / scale, b / scale, c / scale, d / scale, e, f,
-  ];
+  const [ua, ub, uc, ud] = [a / scale, b / scale, c / scale, d / scale];
 
   const font = I.FPDFText_LoadStandardFont(doc.handle, opts.fontName);
   if (!font) return -1;
-  const obj = I.FPDFPageObj_CreateTextObj(doc.handle, font, opts.fontSize);
-  if (!obj) return -1;
-
-  const w = writeWideString(I, opts.text);
-  try {
-    I.FPDFText_SetText(obj, w);
-  } finally {
-    free(I, w);
-  }
-  I.FPDFPageObj_SetFillColor(obj, opts.color.r, opts.color.g, opts.color.b, opts.color.a);
-  setMatrix(I, obj, unit);
 
   I.FPDFPage_RemoveObject(page, old);
   I.FPDFPageObj_Destroy(old);
-  I.FPDFPage_InsertObject(page, obj);
 
-  return I.FPDFPage_CountObjects(page) - 1; // appended on top
+  const lines = opts.text.split("\n");
+  const lineHeight = opts.fontSize * 1.2;
+  let created = 0;
+  lines.forEach((line, i) => {
+    if (line.length === 0) return; // blank line: advance spacing only
+    const obj = I.FPDFPageObj_CreateTextObj(doc.handle, font, opts.fontSize);
+    if (!obj) return;
+    const w = writeWideString(I, line);
+    try {
+      I.FPDFText_SetText(obj, w);
+    } finally {
+      free(I, w);
+    }
+    I.FPDFPageObj_SetFillColor(obj, opts.color.r, opts.color.g, opts.color.b, opts.color.a);
+    // Offset line i downward along the run's local "down" axis = -(uc, ud).
+    const ex = e - i * lineHeight * uc;
+    const fy = f - i * lineHeight * ud;
+    setMatrix(I, obj, [ua, ub, uc, ud, ex, fy]);
+    I.FPDFPage_InsertObject(page, obj);
+    created++;
+  });
+
+  return created > 0 ? I.FPDFPage_CountObjects(page) - 1 : -1;
 }
