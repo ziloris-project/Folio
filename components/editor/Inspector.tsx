@@ -146,7 +146,7 @@ export function Inspector() {
               </label>
               <p className="text-[11px] text-muted">
                 Replacing the font guarantees typed characters render (the original may be a
-                subset font missing glyphs).
+                subset font missing glyphs) and enables multi-line text (use line breaks).
               </p>
             </>
           )}
