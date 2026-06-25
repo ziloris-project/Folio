@@ -2,9 +2,9 @@
 
 **A fast, private, open-source PDF editor that runs entirely in your browser.**
 
-Open a PDF, edit its text, drop in signatures, images and shapes, reorder pages, then export — all without a single byte ever leaving your device. No accounts, no uploads, no server.
+Open a PDF, edit its text, drop in signatures, images and shapes, reorder pages, then export - all without a single byte ever leaving your device. No accounts, no uploads, no server.
 
-> ⚠️ **Status: under active development (alpha).** Folio is still being built — features are landing fast, and things may change or break between commits. Not yet recommended for critical documents. A hosted build will be available at **[folio.ziloris.com](https://folio.ziloris.com)**.
+> ⚠️ **Status: under active development (alpha).** Folio is still being built - features are landing fast, and things may change or break between commits. Not yet recommended for critical documents. A hosted build will be available at **[folio.ziloris.com](https://folio.ziloris.com)**.
 
 <p align="left">
   <img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange">
@@ -17,12 +17,12 @@ Open a PDF, edit its text, drop in signatures, images and shapes, reorder pages,
 
 ## Why Folio
 
-Most "free" online PDF editors upload your file to a server you don't control. Folio takes the opposite approach: the entire editor — rendering, editing, and exporting — runs **100% client-side** using a WebAssembly build of PDFium. Your documents stay on your machine.
+Most "free" online PDF editors upload your file to a server you don't control. Folio takes the opposite approach: the entire editor - rendering, editing, and exporting - runs **100% client-side** using a WebAssembly build of PDFium. Your documents stay on your machine.
 
-- 🔒 **Private by design** — files are processed locally in your browser; nothing is uploaded.
-- ⚡ **Fast** — native-grade rendering via PDFium compiled to WebAssembly.
-- 🆓 **Free & open source** — MIT licensed, forever.
-- 🧩 **No install** — runs in any modern browser.
+- 🔒 **Private by design** - files are processed locally in your browser; nothing is uploaded.
+- ⚡ **Fast** - native-grade rendering via PDFium compiled to WebAssembly.
+- 🆓 **Free & open source** - MIT licensed, forever.
+- 🧩 **No install** - runs in any modern browser.
 
 ## Features
 
@@ -46,9 +46,9 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router) + **React 19** + **TypeScript**
-- **[@embedpdf/pdfium](https://www.npmjs.com/package/@embedpdf/pdfium)** — PDFium compiled to WebAssembly (BSD-3), for rendering & page-object editing
-- **[pdf-lib](https://pdf-lib.js.org/)** — export / annotation baking
-- **[Zustand](https://zustand-demo.pmnd.rs/)** — editor state & undo/redo history
+- **[@embedpdf/pdfium](https://www.npmjs.com/package/@embedpdf/pdfium)** - PDFium compiled to WebAssembly (BSD-3), for rendering & page-object editing
+- **[pdf-lib](https://pdf-lib.js.org/)** - export / annotation baking
+- **[Zustand](https://zustand-demo.pmnd.rs/)** - editor state & undo/redo history
 - **[Radix UI](https://www.radix-ui.com/)** primitives + **[Tailwind CSS](https://tailwindcss.com/)** + **[lucide-react](https://lucide.dev/)** icons
 
 ## Getting started
@@ -102,6 +102,6 @@ Contributions are welcome! Since the project is moving quickly, please open an i
 
 ## License
 
-[MIT](LICENSE) — free to use, modify, and distribute.
+[MIT](LICENSE) - free to use, modify, and distribute.
 
 Folio bundles [PDFium](https://pdfium.googlesource.com/pdfium/) (BSD-3-Clause) via `@embedpdf/pdfium`.
