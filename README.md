@@ -4,7 +4,7 @@
 
 Open a PDF, edit its text, drop in signatures, images and shapes, reorder pages, then export - all without a single byte ever leaving your device. No accounts, no uploads, no server.
 
-> ⚠️ **Status: under active development (alpha).** Folio is still being built - features are landing fast, and things may change or break between commits. Not yet recommended for critical documents. A hosted build will be available at **[folio.ziloris.com](https://folio.ziloris.com)**.
+> **Status: under active development (alpha).** Folio is still being built - features are landing fast, and things may change or break between commits. Not yet recommended for critical documents. A hosted build will be available at **[folio.ziloris.com](https://folio.ziloris.com)**.
 
 <p align="left">
   <img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange">
@@ -19,29 +19,27 @@ Open a PDF, edit its text, drop in signatures, images and shapes, reorder pages,
 
 Most "free" online PDF editors upload your file to a server you don't control. Folio takes the opposite approach: the entire editor - rendering, editing, and exporting - runs **100% client-side** using a WebAssembly build of PDFium. Your documents stay on your machine.
 
-- 🔒 **Private by design** - files are processed locally in your browser; nothing is uploaded.
-- ⚡ **Fast** - native-grade rendering via PDFium compiled to WebAssembly.
-- 🆓 **Free & open source** - MIT licensed, forever.
-- 🧩 **No install** - runs in any modern browser.
+- **Private by design.** Files are processed locally in your browser; nothing is ever uploaded.
+- **Native-grade performance.** Rendering is powered by PDFium compiled to WebAssembly.
+- **Free and open source.** MIT licensed, with no paywalls or feature gates.
+- **Zero install.** Runs in any modern browser - nothing to download or set up.
 
 ## Features
 
 | Status | Feature |
-| :----: | ------- |
-| ✅ | Open & render PDFs (PDFium-WASM), with page rotation |
-| ✅ | Page thumbnail rail with page operations |
-| ✅ | Select & move existing text / image objects on the page |
-| ✅ | Replace fonts on existing text runs; multi-line text editing |
-| ✅ | Add text, image and shape / ink / line annotations |
-| ✅ | Draw-to-sign signature dialog |
-| ✅ | Inspector panel for fine-grained content editing |
-| ✅ | Undo / redo with snapshot history (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) |
-| ✅ | Export / save (annotations baked in via pdf-lib) |
-| 🚧 | Page insert / delete / merge across documents |
-| 🚧 | Form-field editing |
-| 🚧 | Mobile / touch polish |
-
-✅ = available today · 🚧 = planned / in progress
+| ------ | ------- |
+| Available | Open and render PDFs (PDFium-WASM), with page rotation |
+| Available | Page thumbnail rail with page operations |
+| Available | Select and move existing text / image objects on the page |
+| Available | Replace fonts on existing text runs; multi-line text editing |
+| Available | Add text, image and shape / ink / line annotations |
+| Available | Draw-to-sign signature dialog |
+| Available | Inspector panel for fine-grained content editing |
+| Available | Undo / redo with snapshot history (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) |
+| Available | Export / save (annotations baked in via pdf-lib) |
+| Planned | Page insert / delete / merge across documents |
+| Planned | Form-field editing |
+| Planned | Mobile / touch polish |
 
 ## Tech stack
 
