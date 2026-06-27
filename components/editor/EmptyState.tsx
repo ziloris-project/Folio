@@ -32,11 +32,8 @@ export function EmptyState() {
       {/* Top bar */}
       <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
         <div className="flex items-center gap-2.5">
-          <FolioMark className="h-7 w-7 [filter:drop-shadow(0_0_7px_color-mix(in_oklab,var(--neon-cyan)_45%,transparent))]" />
+          <FolioMark className="h-6 w-6 [filter:drop-shadow(0_0_7px_color-mix(in_oklab,var(--neon-cyan)_45%,transparent))]" />
           <span className="text-[15px] font-semibold tracking-tight">Folio</span>
-          <span className="ml-0.5 rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted">
-            alpha
-          </span>
         </div>
         <a
           href="https://github.com/ziloris-project/Folio"
@@ -145,9 +142,17 @@ export function EmptyState() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 flex items-center justify-between border-t border-white/5 px-6 py-4 text-xs text-muted sm:px-10">
+      <footer className="relative z-10 flex items-center justify-center gap-1.5 border-t border-white/5 px-6 py-4 text-xs text-muted sm:px-10">
         <span>© 2026 Folio</span>
-        <span>Private by design · MIT</span>
+        <span className="text-white/15">@</span>
+        <a
+          href="https://ziloris.com"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-foreground/70 transition-colors hover:text-foreground"
+        >
+          ziloris
+        </a>
       </footer>
     </div>
   );
