@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   // needed. Turbopack is the default bundler in Next 16.
 
   // Because there is no server work, we emit a fully static site to ./out and
-  // ship it to Cloudflare Pages (see wrangler.jsonc + `npm run deploy`).
+  // serve it from Cloudflare as static assets (see wrangler.jsonc + `npm run
+  // deploy`).
   output: "export",
   images: { unoptimized: true },
 };

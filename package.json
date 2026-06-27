@@ -9,8 +9,8 @@
     "lint": "eslint",
     "copy-wasm": "node -e \"require('fs').copyFileSync('node_modules/@embedpdf/pdfium/dist/pdfium.wasm','public/pdfium.wasm')\"",
     "postinstall": "npm run copy-wasm",
-    "deploy": "next build && wrangler pages deploy",
-    "preview": "next build && wrangler pages dev"
+    "deploy": "next build && wrangler deploy",
+    "preview": "next build && wrangler dev"
   },
   "dependencies": {
     "@embedpdf/pdfium": "^2.14.4",
