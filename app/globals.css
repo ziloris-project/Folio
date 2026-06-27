@@ -14,6 +14,12 @@
   --accent: #6366f1;
   --accent-fg: #ffffff;
   --canvas: #2a2a2e;
+
+  /* Landing accent — a cyan→indigo duotone. Indigo is the same hue the editor
+     uses (--accent), so the hero and the app read as one product, not two.
+     Used by the landing/hero only; editor chrome stays neutral. */
+  --neon-cyan: #2dd4bf;
+  --neon-iris: #6366f1;
 }
 
 @theme inline {
@@ -26,8 +32,58 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-canvas: var(--canvas);
+  --color-neon-cyan: var(--neon-cyan);
+  --color-neon-iris: var(--neon-iris);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* ------------------------------------------------------------------ *
+ * Landing motion primitives (RetroGrid / ShineBorder / AuroraText).
+ * Keyframes live here because Tailwind v4 has no JS config to host them.
+ * ------------------------------------------------------------------ */
+@keyframes grid-scroll {
+  to {
+    transform: translateY(calc(var(--grid-cell) * -1));
+  }
+}
+.animate-grid-scroll {
+  animation: grid-scroll 18s linear infinite;
+}
+
+@keyframes shine-travel {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 300% 0%;
+  }
+}
+.animate-shine {
+  background-size: 300% 100%;
+  animation: shine-travel var(--shine-duration, 9s) linear infinite;
+}
+
+@keyframes aurora-pan {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+.animate-aurora {
+  background-size: 200% auto;
+  animation: aurora-pan 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-grid-scroll,
+  .animate-shine,
+  .animate-aurora {
+    animation: none;
+  }
 }
 
 html,
