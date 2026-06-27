@@ -1,51 +1,34 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The Folio wordmark glyph: a single sheet with a dog-eared corner (a "folio"
- * is one leaf of paper) and two text rules, drawn monoline with the cyan→indigo
- * landing gradient. Hand-drawn paths — not an off-the-shelf icon.
+ * The Folio logo glyph: a geometric "F" with its stem sliced off at an angle,
+ * filled with the cyan->indigo landing gradient. Meant to sit immediately left
+ * of the "Folio" wordmark. Hand-built path — not a font letter or stock icon.
  */
 export function FolioMark({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 28 28"
+      viewBox="0 0 24 24"
       fill="none"
       aria-hidden
       className={cn("text-neon-cyan", className)}
     >
       <defs>
         <linearGradient
-          id="folio-mark"
-          x1="6"
-          y1="4"
-          x2="22"
-          y2="24"
+          id="folio-f"
+          x1="7"
+          y1="5"
+          x2="17"
+          y2="19"
           gradientUnits="userSpaceOnUse"
         >
           <stop stopColor="var(--neon-cyan)" />
           <stop offset="1" stopColor="var(--neon-iris)" />
         </linearGradient>
       </defs>
-      {/* Sheet outline with the corner cut away for the fold. */}
       <path
-        d="M9 3.75H16L22 9.75V22A2 2 0 0 1 20 24H9A2 2 0 0 1 7 22V5.75A2 2 0 0 1 9 3.75Z"
-        stroke="url(#folio-mark)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      {/* The dog-ear. */}
-      <path
-        d="M16 3.75V9.75H22"
-        stroke="url(#folio-mark)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      {/* Three text rules. */}
-      <path
-        d="M11 18H18M11 14.5H18M11 11H14.5"
-        stroke="url(#folio-mark)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
+        d="M7 5.5H17.5V8.6H11V10.9H15.7V14H11V18.7L7 16.2Z"
+        fill="url(#folio-f)"
       />
     </svg>
   );
