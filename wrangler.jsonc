@@ -1,0 +1,15 @@
+{
+  // Cloudflare Pages deployment for Folio.
+  // Folio is a fully static, client-side app (`next build` with output:"export"
+  // emits ./out), so Pages just serves the prebuilt assets — no Functions/SSR.
+  //
+  //   npm run build      -> produces ./out
+  //   npm run deploy     -> uploads ./out to Cloudflare Pages
+  //
+  // First time: `npx wrangler login`, then create the project (the deploy
+  // command will prompt to create "folio" if it doesn't exist yet).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "folio",
+  "compatibility_date": "2025-01-01",
+  "pages_build_output_dir": "out"
+}
