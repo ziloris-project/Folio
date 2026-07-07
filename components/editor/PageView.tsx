@@ -185,7 +185,7 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
       const el = overlayRef.current!;
       const p = toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom);
       const ann: Annotation = {
-        id: nanoid(), type: "text", x: p.x, y: p.y, width: 180,
+        id: nanoid(), type: "text", x: p.x, y: p.y - tool.fontSize * 0.6, width: 180,
         text: "", fontSize: tool.fontSize, color: tool.color, bold: false,
       };
       addAnnotation(page.id, ann);
