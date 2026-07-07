@@ -22,6 +22,18 @@ import {
 
 const FPDF_ANNOT = 0x01;
 const FPDF_REVERSE_BYTE_ORDER = 0x10;
+const FPDF_ERR_PASSWORD = 4;
+
+/** Thrown when a PDF needs a password (or the supplied one was wrong). */
+export class PasswordRequiredError extends Error {
+  /** True if a password was supplied and rejected (vs. first prompt). */
+  readonly wrongPassword: boolean;
+  constructor(wrongPassword: boolean) {
+    super(wrongPassword ? "Incorrect password." : "This PDF is password-protected.");
+    this.name = "PasswordRequiredError";
+    this.wrongPassword = wrongPassword;
+  }
+}
 
 export interface PageSize {
   width: number;
@@ -40,13 +52,15 @@ export class PdfiumDoc {
     readonly pageCount: number,
   ) {}
 
-  static async load(bytes: Uint8Array): Promise<PdfiumDoc> {
+  static async load(bytes: Uint8Array, password = ""): Promise<PdfiumDoc> {
     const I = await getPdfium();
     const dataPtr = writeBytes(I, bytes); // PDFium reads lazily; keep alive until close()
-    const handle = I.FPDF_LoadMemDocument(dataPtr, bytes.length, ""); // "" => no password
+    const handle = I.FPDF_LoadMemDocument(dataPtr, bytes.length, password);
     if (!handle) {
+      const err = I.FPDF_GetLastError();
       free(I, dataPtr);
-      throw new Error("Could not open PDF — it may be corrupt or password-protected.");
+      if (err === FPDF_ERR_PASSWORD) throw new PasswordRequiredError(password.length > 0);
+      throw new Error("Could not open PDF — it may be corrupt or an unsupported format.");
     }
     const count = I.FPDF_GetPageCount(handle);
     const doc = new PdfiumDoc(I, handle, dataPtr, count);

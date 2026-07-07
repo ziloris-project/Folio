@@ -9,10 +9,18 @@ import { PdfiumDoc } from "./doc";
 
 const docs = new Map<string, Promise<PdfiumDoc>>();
 
-export function openPdfiumDoc(sourceId: string, bytes: Uint8Array): Promise<PdfiumDoc> {
+export function openPdfiumDoc(
+  sourceId: string,
+  bytes: Uint8Array,
+  password = "",
+): Promise<PdfiumDoc> {
   let existing = docs.get(sourceId);
   if (!existing) {
-    existing = PdfiumDoc.load(bytes);
+    existing = PdfiumDoc.load(bytes, password);
+    // Don't cache a failed load (e.g. wrong password) — allow a clean retry.
+    existing.catch(() => {
+      if (docs.get(sourceId) === existing) docs.delete(sourceId);
+    });
     docs.set(sourceId, existing);
   }
   return existing;
