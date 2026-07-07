@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
 import { useEditor } from "@/lib/store";
 import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
@@ -85,6 +85,14 @@ export function Inspector() {
     setText(obj?.type === "text" ? obj.text : "");
   }
 
+  // Debounce live text apply — each apply regenerates the page, so we wait for a
+  // pause in typing rather than firing on every keystroke.
+  const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const applyTextDebounced = (pageId: string, index: number, value: string) => {
+    if (applyTimer.current) clearTimeout(applyTimer.current);
+    applyTimer.current = setTimeout(() => void editObjectText(pageId, index, value), 400);
+  };
+
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-panel">
       <div className="border-b border-border px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted">
@@ -111,12 +119,18 @@ export function Inspector() {
                 <span className="text-xs text-muted">Text</span>
                 <textarea
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onBlur={() => text !== obj.text && void editObjectText(selectedObject.pageId, obj.index, text)}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    applyTextDebounced(selectedObject.pageId, obj.index, e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (applyTimer.current) clearTimeout(applyTimer.current);
+                    if (text !== obj.text) void editObjectText(selectedObject.pageId, obj.index, text);
+                  }}
                   rows={3}
                   className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
                 />
-                <span className="text-[11px] text-muted">Press Tab / click away to apply.</span>
+                <span className="text-[11px] text-muted">Applies as you type.</span>
               </div>
               <CommitSlider
                 label="Size" min={4} max={96} value={Math.round(obj.fontSize)}
