@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   RotateCw,
   Trash2,
@@ -24,6 +24,15 @@ export function Thumbnails() {
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active page's thumbnail visible in the rail as the document scrolls.
+  useEffect(() => {
+    if (!selectedPageId) return;
+    railRef.current
+      ?.querySelector<HTMLElement>(`[data-thumb-id="${selectedPageId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedPageId]);
 
   function scrollToPage(id: string) {
     selectPage(id);
@@ -35,13 +44,14 @@ export function Thumbnails() {
       <div className="flex items-center justify-between px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
         <span>Pages ({pages.length})</span>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
+      <div ref={railRef} className="flex-1 overflow-y-auto px-3 pb-6">
         <ol className="flex flex-col gap-3">
           {pages.map((page, i) => {
             const selected = page.id === selectedPageId;
             return (
               <li
                 key={page.id}
+                data-thumb-id={page.id}
                 draggable
                 onDragStart={() => setDragIndex(i)}
                 onDragOver={(e) => {
