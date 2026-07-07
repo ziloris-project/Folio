@@ -41,11 +41,15 @@ export function TextNode({
     onMove: (dx, dy) => onChange({ ...snapshot.current, x: snapshot.current.x + dx, y: snapshot.current.y + dy }),
   });
 
+  // Grow the box to fit its content rather than a fixed width, capped at the
+  // page's right edge so it never spills off the page. `fieldSizing: content`
+  // makes the textarea auto-size to the typed text in supporting browsers.
+  const maxWidth = (mediaW - ann.x) * zoom;
   const style: React.CSSProperties = {
     position: "absolute",
     left: ann.x * zoom,
     top: ann.y * zoom,
-    width: ann.width * zoom,
+    maxWidth,
     fontSize: ann.fontSize * zoom,
     lineHeight: 1.2,
     color: ann.color,
@@ -71,7 +75,7 @@ export function TextNode({
           setEditing(false);
           if (ann.text.trim() === "") onErase(); // drop boxes left empty
         }}
-        style={{ ...style, pointerEvents: "auto", resize: "none", background: "rgba(99,102,241,0.06)", outline: "1px solid #6366f1", padding: 0, overflow: "hidden" }}
+        style={{ ...style, pointerEvents: "auto", resize: "none", background: "rgba(99,102,241,0.06)", outline: "1px solid #6366f1", padding: 0, overflow: "hidden", fieldSizing: "content", minWidth: 2 * ann.fontSize * zoom } as React.CSSProperties}
         rows={Math.max(1, ann.text.split("\n").length)}
         className="rounded-sm"
       />
@@ -80,7 +84,7 @@ export function TextNode({
 
   return (
     <div
-      style={{ ...style, cursor: eraser ? "crosshair" : "move", whiteSpace: "pre-wrap", outline: selected ? "1px dashed #6366f1" : "none" }}
+      style={{ ...style, width: "max-content", cursor: eraser ? "crosshair" : "move", whiteSpace: "pre-wrap", outline: selected ? "1px dashed #6366f1" : "none" }}
       onPointerDown={(e) => {
         if (!interactive) return;
         if (eraser) { e.stopPropagation(); onErase(); return; }
