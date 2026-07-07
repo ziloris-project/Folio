@@ -37,6 +37,7 @@ export function EditObjectsLayer({
   objects, selectedIndex, zoom, rotation, mediaW, mediaH, overlayRef, onSelect, onMoveCommit,
 }: Props) {
   const [drag, setDrag] = useState<{ index: number; dx: number; dy: number } | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
 
   function startDrag(e: React.PointerEvent, index: number) {
     e.stopPropagation();
@@ -74,6 +75,7 @@ export function EditObjectsLayer({
       {objects.map((o) => {
         const r = toRect(o, mediaH);
         const selected = o.index === selectedIndex;
+        const isHovered = o.index === hovered;
         const off = drag && drag.index === o.index ? drag : { dx: 0, dy: 0 };
         return (
           <g key={o.index} transform={`translate(${off.dx} ${off.dy})`}>
@@ -83,10 +85,11 @@ export function EditObjectsLayer({
               width={r.w}
               height={r.h}
               fill="transparent"
-              stroke={selected ? "#6366f1" : "transparent"}
+              stroke={selected ? "#6366f1" : isHovered ? "#6366f199" : "transparent"}
               strokeWidth={(selected ? 1.5 : 1) / zoom}
-              className="hover:[stroke:#6366f1aa]"
               style={{ cursor: "move", pointerEvents: "all" }}
+              onPointerEnter={() => setHovered(o.index)}
+              onPointerLeave={() => setHovered((h) => (h === o.index ? null : h))}
               onPointerDown={(e) => startDrag(e, o.index)}
             />
           </g>
