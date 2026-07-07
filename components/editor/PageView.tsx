@@ -186,7 +186,10 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
       const p = toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom);
       const ann: Annotation = {
         id: nanoid(), type: "text", x: p.x, y: p.y - tool.fontSize * 0.6, width: 180,
-        text: "", fontSize: tool.fontSize, color: tool.color, bold: false,
+        // Text reads as near-black by default; only honor an explicitly-picked,
+        // non-default color (the shared tool color defaults to red for shapes).
+        text: "", fontSize: tool.fontSize,
+        color: tool.color === "#ef4444" ? "#111827" : tool.color, bold: false,
       };
       addAnnotation(page.id, ann);
       setTool("select"); // stop placing; let the new box be clicked/edited
