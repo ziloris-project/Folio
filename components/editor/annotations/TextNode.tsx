@@ -77,7 +77,22 @@ export function TextNode({
       onPointerDown={(e) => {
         if (!interactive) return;
         if (eraser) { e.stopPropagation(); onErase(); return; }
+        // Start a potential move; if the pointer doesn't really move and the box
+        // was already selected, treat it as a click-to-edit (so a second click
+        // enters editing without needing a double-click).
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const wasSelected = selected;
         onMoveDown(e);
+        const up = (ev: PointerEvent) => {
+          window.removeEventListener("pointerup", up);
+          const moved = Math.hypot(ev.clientX - startX, ev.clientY - startY) > 3;
+          if (!moved && wasSelected) {
+            useEditor.getState().beginHistory();
+            setEditing(true);
+          }
+        };
+        window.addEventListener("pointerup", up);
       }}
       onDoubleClick={() => {
         if (eraser) return;
