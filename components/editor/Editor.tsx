@@ -9,6 +9,7 @@ import { Thumbnails } from "./Thumbnails";
 import { Viewport } from "./Viewport";
 import { EmptyState } from "./EmptyState";
 import { Inspector } from "./Inspector";
+import { PasswordPrompt } from "./PasswordPrompt";
 
 const HOTKEYS: Record<string, ToolId> = {
   v: "select", c: "edit", t: "text", d: "ink", h: "highlight",
@@ -18,6 +19,7 @@ const HOTKEYS: Record<string, ToolId> = {
 export function Editor() {
   const status = useEditor((s) => s.status);
   const editMode = useEditor((s) => s.activeTool === "edit");
+  const needsPassword = useEditor((s) => s.pendingLoad !== null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -92,6 +94,7 @@ export function Editor() {
         ) : (
           <EmptyState />
         )}
+        {needsPassword && <PasswordPrompt />}
       </div>
     </TooltipProvider>
   );
