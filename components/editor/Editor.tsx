@@ -30,6 +30,7 @@ export function Editor() {
       if (st.status !== "ready") return;
 
       if (e.key === "Escape") {
+        if (st.pendingImage) st.setPendingImage(null); // cancel image placement
         st.setTool("select");
         st.selectAnnotation(null);
         return;

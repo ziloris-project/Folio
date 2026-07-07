@@ -8,9 +8,8 @@ import {
   ArrowUpRight, Image as ImageIcon, PenTool, Eraser, FolderOpen, FilePlus2,
   Download, ZoomIn, ZoomOut, Loader2, TextCursorInput, Undo2, Redo2,
 } from "lucide-react";
-import { nanoid } from "nanoid";
 import { useEditor } from "@/lib/store";
-import type { ImageAnnotation, ToolId } from "@/lib/pdf/types";
+import type { ToolId } from "@/lib/pdf/types";
 import { downloadBlob } from "@/lib/utils";
 import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
@@ -34,21 +33,10 @@ const TOOLS: { id: ToolId; icon: typeof Type; label: string }[] = [
 
 const PALETTE = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#6366f1", "#111827", "#ffffff"];
 
-/** Place an image annotation centered on the currently-selected page. */
-function placeImageCentered(dataUrl: string, naturalW: number, naturalH: number) {
-  const st = useEditor.getState();
-  const page = st.pages.find((p) => p.id === st.selectedPageId) ?? st.pages[0];
-  if (!page) return;
-  const maxW = page.width * 0.5;
-  const scale = Math.min(1, maxW / naturalW);
-  const w = naturalW * scale;
-  const h = naturalH * scale;
-  const ann: ImageAnnotation = {
-    id: nanoid(), type: "image", dataUrl,
-    x: (page.width - w) / 2, y: (page.height - h) / 2, width: w, height: h,
-  };
-  st.addAnnotation(page.id, ann);
-  st.setTool("select");
+/** Arm an image/signature for placement — it then follows the cursor until the
+ *  user clicks a page to drop it (handled in PageView). */
+function beginImagePlacement(dataUrl: string, naturalW: number, naturalH: number) {
+  useEditor.getState().setPendingImage({ dataUrl, naturalW, naturalH });
 }
 
 export function Toolbar() {
@@ -92,7 +80,7 @@ export function Toolbar() {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const img = new Image();
-      img.onload = () => placeImageCentered(dataUrl, img.naturalWidth, img.naturalHeight);
+      img.onload = () => beginImagePlacement(dataUrl, img.naturalWidth, img.naturalHeight);
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
@@ -285,7 +273,7 @@ export function Toolbar() {
       <SignatureDialog
         open={sigOpen}
         onOpenChange={setSigOpen}
-        onConfirm={(dataUrl, w, h) => { placeImageCentered(dataUrl, w, h); setSigOpen(false); }}
+        onConfirm={(dataUrl, w, h) => { beginImagePlacement(dataUrl, w, h); setSigOpen(false); }}
       />
     </header>
   );

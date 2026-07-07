@@ -54,6 +54,10 @@ interface EditorState {
   selectedPageId: string | null;
   selectedAnnotationId: string | null;
 
+  /** An image/signature awaiting placement — follows the cursor until a page is
+   *  clicked (see PageView). null when not placing. */
+  pendingImage: { dataUrl: string; naturalW: number; naturalH: number } | null;
+
   // ----- existing-content editing (PDFium page objects) -----
   /** Cache of enumerated page objects, keyed by page id (lazy in edit mode). */
   pageObjects: Record<string, PageObject[]>;
@@ -81,6 +85,7 @@ interface EditorState {
   // ----- selection -----
   selectPage: (id: string | null) => void;
   selectAnnotation: (id: string | null) => void;
+  setPendingImage: (img: EditorState["pendingImage"]) => void;
 
   // ----- page ops -----
   rotatePage: (id: string, dir: 1 | -1) => void;
@@ -171,6 +176,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   selectedPageId: null,
   selectedAnnotationId: null,
+  pendingImage: null,
 
   pageObjects: {},
   selectedObject: null,
@@ -226,6 +232,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       pages: [],
       selectedPageId: null,
       selectedAnnotationId: null,
+      pendingImage: null,
       pageObjects: {},
       selectedObject: null,
       sourceBytes: {},
@@ -248,6 +255,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   selectPage: (id) => set({ selectedPageId: id }),
   selectAnnotation: (id) => set({ selectedAnnotationId: id }),
+  setPendingImage: (img) => set({ pendingImage: img }),
 
   rotatePage: (id, dir) => {
     get().beginHistory();

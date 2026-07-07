@@ -50,8 +50,22 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   const selectObjectAction = useEditor((s) => s.selectObject);
   const moveObjectBy = useEditor((s) => s.moveObjectBy);
 
+  // Floating image/signature placement
+  const pendingImage = useEditor((s) => s.pendingImage);
+  const setPendingImage = useEditor((s) => s.setPendingImage);
+
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [placeAt, setPlaceAt] = useState<{ x: number; y: number } | null>(null);
   const editMode = activeTool === "edit";
+  const placing = pendingImage !== null;
+
+  // Size a pending image to at most half the page width, preserving aspect.
+  const placeSize = pendingImage
+    ? (() => {
+        const scale = Math.min(1, (page.width * 0.5) / pendingImage.naturalW);
+        return { w: pendingImage.naturalW * scale, h: pendingImage.naturalH * scale };
+      })()
+    : null;
 
   const swapped = page.rotation === 90 || page.rotation === 270;
   const dispW = (swapped ? page.height : page.width) * zoom;
@@ -139,6 +153,11 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   }
 
   function onPointerMove(e: RPointerEvent<HTMLDivElement>) {
+    if (placing) {
+      const el = overlayRef.current!;
+      setPlaceAt(toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom));
+      return;
+    }
     if (!draft) return;
     const el = overlayRef.current!;
     const p = toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom);
@@ -179,8 +198,32 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
     setDraft(null);
   }
 
+  // Drop the pending image where the user clicks (centered on the cursor).
+  function onPlaceClick(e: RPointerEvent<HTMLDivElement>) {
+    if (!pendingImage || !placeSize) return;
+    const el = overlayRef.current!;
+    const p = toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom);
+    const ann: Annotation = {
+      id: nanoid(),
+      type: "image",
+      dataUrl: pendingImage.dataUrl,
+      x: p.x - placeSize.w / 2,
+      y: p.y - placeSize.h / 2,
+      width: placeSize.w,
+      height: placeSize.h,
+    };
+    addAnnotation(page.id, ann);
+    setPendingImage(null);
+    setPlaceAt(null);
+    setTool("select");
+  }
+
   // Click on text tool places a text box and switches to editing.
   function onBackgroundClick(e: RPointerEvent<HTMLDivElement>) {
+    if (placing) {
+      onPlaceClick(e);
+      return;
+    }
     if (activeTool === "text") {
       const el = overlayRef.current!;
       const p = toPagePoint(e, el, page.rotation, mediaW, mediaH, zoom);
@@ -288,17 +331,35 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
             ))}
         </div>
 
-        {/* Drawing / empty-click capture layer */}
+        {/* Floating preview of the image being placed */}
+        {placing && placeAt && placeSize && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={pendingImage!.dataUrl}
+            alt=""
+            className="pointer-events-none absolute opacity-60 ring-1 ring-accent"
+            style={{
+              left: (placeAt.x - placeSize.w / 2) * zoom,
+              top: (placeAt.y - placeSize.h / 2) * zoom,
+              width: placeSize.w * zoom,
+              height: placeSize.h * zoom,
+            }}
+          />
+        )}
+
+        {/* Drawing / placement / empty-click capture layer */}
         <div
           ref={overlayRef}
           className="absolute inset-0"
           style={{
-            pointerEvents: isDrawing || activeTool === "text" || editMode ? "auto" : "none",
-            cursor: isDrawing ? "crosshair" : activeTool === "text" ? "text" : "default",
+            pointerEvents:
+              isDrawing || activeTool === "text" || editMode || placing ? "auto" : "none",
+            cursor: placing ? "copy" : isDrawing ? "crosshair" : activeTool === "text" ? "text" : "default",
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerLeave={() => placing && setPlaceAt(null)}
           onClick={onBackgroundClick}
         />
 
