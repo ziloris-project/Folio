@@ -60,7 +60,10 @@ export function TextNode({
         ref={taRef}
         value={ann.text}
         onChange={(e) => onChange({ ...ann, text: e.target.value })}
-        onBlur={() => setEditing(false)}
+        onBlur={() => {
+          setEditing(false);
+          if (ann.text.trim() === "") onErase(); // drop boxes left empty
+        }}
         style={{ ...style, pointerEvents: "auto", resize: "none", background: "rgba(99,102,241,0.06)", outline: "1px solid #6366f1", padding: 0, overflow: "hidden" }}
         rows={Math.max(1, ann.text.split("\n").length)}
         className="rounded-sm"
