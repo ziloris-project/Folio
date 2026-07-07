@@ -60,6 +60,13 @@ export function TextNode({
         ref={taRef}
         value={ann.text}
         onChange={(e) => onChange({ ...ann, text: e.target.value })}
+        onKeyDown={(e) => {
+          // Esc commits and exits editing (Enter still inserts a newline).
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
         onBlur={() => {
           setEditing(false);
           if (ann.text.trim() === "") onErase(); // drop boxes left empty
