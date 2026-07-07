@@ -15,6 +15,7 @@ import { downloadBlob } from "@/lib/utils";
 import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
 import { SignatureDialog } from "./SignatureDialog";
+import { viewportEl } from "./viewportEl";
 
 const TOOLS: { id: ToolId; icon: typeof Type; label: string }[] = [
   { id: "select", icon: MousePointer2, label: "Select / Move (V)" },
@@ -95,6 +96,19 @@ export function Toolbar() {
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
+  }
+
+  // Zoom label: toggle between 100% and fit-to-width of the current page.
+  function toggleFitWidth() {
+    const el = viewportEl.current;
+    const { pages, selectedPageId } = useEditor.getState();
+    const page = pages.find((p) => p.id === selectedPageId) ?? pages[0];
+    if (!el || !page) return setZoom(1);
+    if (Math.abs(zoom - 1) > 0.01) return setZoom(1); // any non-100% → reset first
+    const swapped = page.rotation === 90 || page.rotation === 270;
+    const dispW = swapped ? page.height : page.width;
+    const avail = el.clientWidth - 80; // account for viewport padding + margins
+    setZoom(avail / dispW);
   }
 
   async function onSave() {
@@ -182,12 +196,14 @@ export function Toolbar() {
         {/* Zoom */}
         <div className="flex items-center gap-1">
           <IconButton onClick={() => zoomBy(-0.2)}><ZoomOut className="h-4.5 w-4.5" /></IconButton>
-          <button
-            onClick={() => setZoom(1)}
-            className="w-14 rounded px-1 py-1 text-center text-xs text-muted hover:text-foreground"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
+          <Tooltip label="Toggle 100% / fit width">
+            <button
+              onClick={toggleFitWidth}
+              className="w-14 rounded px-1 py-1 text-center text-xs text-muted hover:text-foreground"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+          </Tooltip>
           <IconButton onClick={() => zoomBy(0.2)}><ZoomIn className="h-4.5 w-4.5" /></IconButton>
         </div>
 

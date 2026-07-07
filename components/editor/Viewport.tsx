@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useEditor } from "@/lib/store";
 import { PageView } from "./PageView";
+import { viewportEl } from "./viewportEl";
 
 export function Viewport() {
   const pages = useEditor((s) => s.pages);
@@ -24,7 +25,13 @@ export function Viewport() {
   }, [zoom]);
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto bg-canvas">
+    <div
+      ref={(el) => {
+        scrollRef.current = el;
+        viewportEl.current = el;
+      }}
+      className="flex-1 overflow-auto bg-canvas"
+    >
       <div className="flex min-h-full flex-col items-center gap-6 py-10 pl-10 pr-6">
         {pages.map((page, i) => (
           <PageView key={page.id} page={page} index={i} />
