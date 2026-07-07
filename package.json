@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "copy-wasm": "node -e \"require('fs').copyFileSync('node_modules/@embedpdf/pdfium/dist/pdfium.wasm','public/pdfium.wasm')\"",
-    "postinstall": "npm run copy-wasm"
+    "postinstall": "npm run copy-wasm",
+    "deploy": "next build && wrangler deploy",
+    "preview": "next build && wrangler dev"
   },
   "dependencies": {
     "@embedpdf/pdfium": "^2.14.4",
@@ -21,6 +23,7 @@
     "@radix-ui/react-tooltip": "^1.2.10",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
+    "motion": "^12.42.0",
     "nanoid": "^5.1.15",
     "next": "16.2.9",
     "pdf-lib": "^1.17.1",
@@ -37,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.105.0"
   }
 }

@@ -1,0 +1,23 @@
+{
+  // Cloudflare deployment for Folio (Workers Static Assets).
+  //
+  // Folio is a fully static, client-side app: `next build` (output:"export")
+  // emits ./out, and Cloudflare serves that directory directly — no Worker
+  // script, no Functions, no SSR. `wrangler deploy` is the command Cloudflare's
+  // build pipeline runs, and it uploads the `assets.directory` below.
+  //
+  //   npm run build    -> produces ./out
+  //   npm run deploy   -> next build && wrangler deploy   (uploads ./out)
+  //   npm run preview  -> serve the built site locally
+  //
+  // First time from a laptop: `npx wrangler login`, then `npm run deploy`.
+  // In Cloudflare's dashboard, set the build command to `npm run build`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "folio",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./out",
+    // The export ships a 404.html; serve it for unknown paths.
+    "not_found_handling": "404-page"
+  }
+}
