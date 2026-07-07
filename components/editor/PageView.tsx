@@ -41,6 +41,7 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   const removeAnnotation = useEditor((s) => s.removeAnnotation);
   const selectAnnotation = useEditor((s) => s.selectAnnotation);
   const selectPage = useEditor((s) => s.selectPage);
+  const setTool = useEditor((s) => s.setTool);
 
   // Existing-content editing
   const objects = useEditor((s) => s.pageObjects[page.id]);
@@ -188,6 +189,7 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
         text: "", fontSize: tool.fontSize, color: tool.color, bold: false,
       };
       addAnnotation(page.id, ann);
+      setTool("select"); // stop placing; let the new box be clicked/edited
     } else if (activeTool === "select") {
       selectAnnotation(null);
     }
