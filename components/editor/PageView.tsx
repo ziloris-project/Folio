@@ -203,6 +203,7 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   return (
     <div
       id={`page-${page.id}`}
+      data-page-id={page.id}
       className="relative shrink-0"
       style={{ width: dispW, height: dispH }}
     >

@@ -8,6 +8,7 @@ import { viewportEl } from "./viewportEl";
 export function Viewport() {
   const pages = useEditor((s) => s.pages);
   const zoom = useEditor((s) => s.zoom);
+  const pageIds = pages.map((p) => p.id).join(",");
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevZoom = useRef(zoom);
   // When set, the next zoom re-anchors the scroll to this viewport-local point
@@ -48,6 +49,36 @@ export function Viewport() {
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
+
+  // Keep the "active page" (thumbnail highlight + action target) in sync with
+  // what's actually scrolled into view — the most-visible page wins.
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const ratios = new Map<string, number>();
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          const id = (en.target as HTMLElement).dataset.pageId;
+          if (id) ratios.set(id, en.isIntersecting ? en.intersectionRatio : 0);
+        }
+        let best: string | null = null;
+        let bestRatio = 0;
+        for (const [id, r] of ratios) {
+          if (r > bestRatio) {
+            bestRatio = r;
+            best = id;
+          }
+        }
+        if (best && useEditor.getState().selectedPageId !== best) {
+          useEditor.getState().selectPage(best);
+        }
+      },
+      { root, threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+    root.querySelectorAll<HTMLElement>("[data-page-id]").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [pageIds]);
 
   return (
     <div
