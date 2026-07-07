@@ -29,13 +29,19 @@ export function useMoveDrag({ overlayRef, rotation, mediaW, mediaH, zoom, onStar
       const el = overlayRef.current;
       if (!el) return;
       e.stopPropagation();
-      useEditor.getState().beginHistory(); // one undo step per drag gesture
       onStart();
       start.current = toPagePoint(e, el, rotation, mediaW, mediaH, zoom);
       (e.target as Element).setPointerCapture?.(e.pointerId);
 
+      // Checkpoint history only once the pointer actually moves, so a plain
+      // click-to-select doesn't create a no-op (dead) undo step.
+      let checkpointed = false;
       const move = (ev: PointerEvent) => {
         if (!start.current) return;
+        if (!checkpointed) {
+          useEditor.getState().beginHistory();
+          checkpointed = true;
+        }
         const p = toPagePoint(ev, el, rotation, mediaW, mediaH, zoom);
         onMove(p.x - start.current.x, p.y - start.current.y);
       };
