@@ -183,7 +183,7 @@ export function Toolbar() {
 
         {/* Zoom */}
         <div className="flex items-center gap-1">
-          <IconButton onClick={() => zoomBy(-0.2)}><ZoomOut className="h-4.5 w-4.5" /></IconButton>
+          <IconButton onClick={() => zoomBy(-0.2)} aria-label="Zoom out"><ZoomOut className="h-4.5 w-4.5" /></IconButton>
           <Tooltip label="Toggle 100% / fit width">
             <button
               onClick={toggleFitWidth}
@@ -192,7 +192,7 @@ export function Toolbar() {
               {Math.round(zoom * 100)}%
             </button>
           </Tooltip>
-          <IconButton onClick={() => zoomBy(0.2)}><ZoomIn className="h-4.5 w-4.5" /></IconButton>
+          <IconButton onClick={() => zoomBy(0.2)} aria-label="Zoom in"><ZoomIn className="h-4.5 w-4.5" /></IconButton>
         </div>
 
         <Separator.Root orientation="vertical" className="mx-1 h-6 w-px bg-border" />

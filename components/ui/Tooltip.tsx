@@ -1,7 +1,7 @@
 "use client";
 
 import * as RTooltip from "@radix-ui/react-tooltip";
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
@@ -20,9 +20,18 @@ export function Tooltip({
   children: ReactNode;
   side?: "top" | "bottom" | "left" | "right";
 }) {
+  // Give icon-only triggers an accessible name from the (string) label so
+  // screen readers announce them — the visual tooltip alone isn't enough.
+  const trigger =
+    typeof label === "string" && isValidElement(children)
+      ? cloneElement(children as ReactElement<{ "aria-label"?: string }>, {
+          "aria-label": (children.props as { "aria-label"?: string })["aria-label"] ?? label,
+        })
+      : children;
+
   return (
     <RTooltip.Root>
-      <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
+      <RTooltip.Trigger asChild>{trigger}</RTooltip.Trigger>
       <RTooltip.Portal>
         <RTooltip.Content
           side={side}
