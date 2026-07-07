@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
-import type { PdfiumDoc } from "./pdf/pdfium/doc";
+import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
 import {
   listPageObjects,
   setObjectText,
@@ -35,12 +35,15 @@ export interface ToolSettings {
   fill: boolean;
 }
 
-export type Status = "empty" | "loading" | "ready" | "error";
+export type Status = "empty" | "loading" | "ready" | "error" | "password";
 
 interface EditorState {
   status: Status;
   error: string | null;
   fileName: string;
+  /** Bytes/name held while we prompt for a password, so we can retry. */
+  pendingLoad: { bytes: Uint8Array; name: string } | null;
+  passwordError: string | null;
   sources: Record<SourceId, PdfSource>;
   pages: PageItem[];
 
@@ -65,6 +68,8 @@ interface EditorState {
   // ----- document lifecycle -----
   loadFile: (file: File) => Promise<void>;
   mergeFile: (file: File) => Promise<void>;
+  submitPassword: (password: string) => Promise<void>;
+  cancelPassword: () => void;
   reset: () => void;
 
   // ----- view / tools -----
@@ -130,8 +135,8 @@ async function readBytes(file: File): Promise<Uint8Array> {
 }
 
 /** Build PageItems for every page of a freshly opened source. */
-async function pagesForSource(source: PdfSource): Promise<PageItem[]> {
-  const doc = await openPdfiumDoc(source.id, source.bytes);
+async function pagesForSource(source: PdfSource, password = ""): Promise<PageItem[]> {
+  const doc = await openPdfiumDoc(source.id, source.bytes, password);
   const pages: PageItem[] = [];
   for (let i = 0; i < doc.pageCount; i++) {
     const { width, height } = doc.pageSize(i);
@@ -170,33 +175,28 @@ export const useEditor = create<EditorState>((set, get) => ({
   pageObjects: {},
   selectedObject: null,
 
+  pendingLoad: null,
+  passwordError: null,
+
   sourceBytes: {},
   past: [],
   future: [],
 
   loadFile: async (file) => {
     set({ status: "loading", error: null });
-    try {
-      const bytes = await readBytes(file);
-      const source: PdfSource = { id: nanoid(), name: file.name, bytes };
-      const pages = await pagesForSource(source);
-      set({
-        status: "ready",
-        fileName: file.name,
-        sources: { [source.id]: source },
-        pages,
-        selectedPageId: pages[0]?.id ?? null,
-        selectedAnnotationId: null,
-        pageObjects: {},
-        selectedObject: null,
-        sourceBytes: { [source.id]: source.bytes },
-        past: [],
-        future: [],
-      });
-    } catch (e) {
-      set({ status: "error", error: e instanceof Error ? e.message : "Failed to open PDF" });
-    }
+    const bytes = await readBytes(file);
+    await openInto(set, bytes, file.name, "");
   },
+
+  submitPassword: async (password) => {
+    const pending = get().pendingLoad;
+    if (!pending) return;
+    set({ status: "loading", passwordError: null });
+    await openInto(set, pending.bytes, pending.name, password);
+  },
+
+  cancelPassword: () =>
+    set({ status: "empty", pendingLoad: null, passwordError: null, error: null }),
 
   mergeFile: async (file) => {
     try {
@@ -220,6 +220,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       status: "empty",
       error: null,
       fileName: "",
+      pendingLoad: null,
+      passwordError: null,
       sources: {},
       pages: [],
       selectedPageId: null,
@@ -482,6 +484,44 @@ async function applySnapshot(
     selectedObject: null,
     selectedAnnotationId: null,
   });
+}
+
+/** Open bytes into a fresh document, or fall into the password-prompt state. */
+async function openInto(
+  set: (partial: Partial<EditorState>) => void,
+  bytes: Uint8Array,
+  name: string,
+  password: string,
+) {
+  try {
+    const source: PdfSource = { id: nanoid(), name, bytes };
+    const pages = await pagesForSource(source, password);
+    set({
+      status: "ready",
+      fileName: name,
+      sources: { [source.id]: source },
+      pages,
+      selectedPageId: pages[0]?.id ?? null,
+      selectedAnnotationId: null,
+      pageObjects: {},
+      selectedObject: null,
+      sourceBytes: { [source.id]: source.bytes },
+      past: [],
+      future: [],
+      pendingLoad: null,
+      passwordError: null,
+    });
+  } catch (e) {
+    if (e instanceof PasswordRequiredError) {
+      set({
+        status: "password",
+        pendingLoad: { bytes, name },
+        passwordError: e.wrongPassword ? e.message : null,
+      });
+    } else {
+      set({ status: "error", error: e instanceof Error ? e.message : "Failed to open PDF" });
+    }
+  }
 }
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
