@@ -50,6 +50,42 @@ export function Viewport() {
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  // Two-finger pinch to zoom (touch devices), anchored at the pinch midpoint.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let startDist = 0;
+    let startZoom = 1;
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const mid = (t: TouchList) => {
+      const r = el.getBoundingClientRect();
+      return { x: (t[0].clientX + t[1].clientX) / 2 - r.left, y: (t[0].clientY + t[1].clientY) / 2 - r.top };
+    };
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        startDist = dist(e.touches);
+        startZoom = useEditor.getState().zoom;
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !startDist) return;
+      e.preventDefault();
+      pendingAnchor.current = mid(e.touches);
+      useEditor.getState().setZoom(startZoom * (dist(e.touches) / startDist));
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) startDist = 0;
+    };
+    el.addEventListener("touchstart", onStart, { passive: false });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
   // Keep the "active page" (thumbnail highlight + action target) in sync with
   // what's actually scrolled into view — the most-visible page wins.
   useEffect(() => {
