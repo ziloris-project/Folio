@@ -58,6 +58,10 @@ interface EditorState {
    *  clicked (see PageView). null when not placing. */
   pendingImage: { dataUrl: string; naturalW: number; naturalH: number } | null;
 
+  /** Transient status message shown as a toast. `id` changes per message so the
+   *  UI can re-trigger its auto-dismiss timer. */
+  toast: { id: string; message: string; kind: "info" | "success" | "error" } | null;
+
   // ----- existing-content editing (PDFium page objects) -----
   /** Cache of enumerated page objects, keyed by page id (lazy in edit mode). */
   pageObjects: Record<string, PageObject[]>;
@@ -86,6 +90,8 @@ interface EditorState {
   selectPage: (id: string | null) => void;
   selectAnnotation: (id: string | null) => void;
   setPendingImage: (img: EditorState["pendingImage"]) => void;
+  showToast: (message: string, kind?: "info" | "success" | "error") => void;
+  dismissToast: () => void;
 
   // ----- page ops -----
   rotatePage: (id: string, dir: 1 | -1) => void;
@@ -177,6 +183,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   selectedPageId: null,
   selectedAnnotationId: null,
   pendingImage: null,
+  toast: null,
 
   pageObjects: {},
   selectedObject: null,
@@ -256,6 +263,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   selectPage: (id) => set({ selectedPageId: id }),
   selectAnnotation: (id) => set({ selectedAnnotationId: id }),
   setPendingImage: (img) => set({ pendingImage: img }),
+  showToast: (message, kind = "info") => set({ toast: { id: nanoid(), message, kind } }),
+  dismissToast: () => set({ toast: null }),
 
   rotatePage: (id, dir) => {
     get().beginHistory();

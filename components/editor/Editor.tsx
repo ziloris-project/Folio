@@ -10,6 +10,7 @@ import { Viewport } from "./Viewport";
 import { EmptyState } from "./EmptyState";
 import { Inspector } from "./Inspector";
 import { PasswordPrompt } from "./PasswordPrompt";
+import { Toast } from "./Toast";
 
 const HOTKEYS: Record<string, ToolId> = {
   v: "select", c: "edit", t: "text", d: "ink", h: "highlight",
@@ -96,6 +97,7 @@ export function Editor() {
           <EmptyState />
         )}
         {needsPassword && <PasswordPrompt />}
+        <Toast />
       </div>
     </TooltipProvider>
   );
