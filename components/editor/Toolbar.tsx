@@ -118,9 +118,13 @@ export function Toolbar() {
       new Uint8Array(ab).set(bytes);
       const name = fileName.replace(/\.pdf$/i, "") || "document";
       downloadBlob(new Blob([ab], { type: "application/pdf" }), `${name}-edited.pdf`);
+      useEditor.getState().showToast(`Exported ${name}-edited.pdf`, "success");
     } catch (e) {
       console.error(e);
-      alert("Failed to export PDF: " + (e instanceof Error ? e.message : String(e)));
+      useEditor.getState().showToast(
+        "Failed to export PDF: " + (e instanceof Error ? e.message : String(e)),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
