@@ -12,10 +12,20 @@ import { useEditor } from "@/lib/store";
 export function PasswordPrompt() {
   const name = useEditor((s) => s.pendingLoad?.name ?? "this PDF");
   const passwordError = useEditor((s) => s.passwordError);
-  const busy = useEditor((s) => s.status === "loading");
   const submitPassword = useEditor((s) => s.submitPassword);
   const cancelPassword = useEditor((s) => s.cancelPassword);
   const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!pw || busy) return;
+    setBusy(true);
+    try {
+      await submitPassword(pw);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <Dialog.Root open onOpenChange={(open) => !open && cancelPassword()}>
@@ -37,7 +47,7 @@ export function PasswordPrompt() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (pw && !busy) void submitPassword(pw);
+              void submit();
             }}
           >
             <input

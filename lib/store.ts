@@ -41,8 +41,9 @@ interface EditorState {
   status: Status;
   error: string | null;
   fileName: string;
-  /** Bytes/name held while we prompt for a password, so we can retry. */
-  pendingLoad: { bytes: Uint8Array; name: string } | null;
+  /** Bytes/name held while we prompt for a password, so we can retry. `mode`
+   *  distinguishes opening a new document from appending to the current one. */
+  pendingLoad: { bytes: Uint8Array; name: string; mode: "open" | "merge" } | null;
   passwordError: string | null;
   sources: Record<SourceId, PdfSource>;
   pages: PageItem[];
@@ -204,27 +205,28 @@ export const useEditor = create<EditorState>((set, get) => ({
   submitPassword: async (password) => {
     const pending = get().pendingLoad;
     if (!pending) return;
-    set({ status: "loading", passwordError: null });
-    await openInto(set, pending.bytes, pending.name, password);
+    set({ passwordError: null });
+    if (pending.mode === "merge") {
+      await mergeInto(get, set, pending.bytes, pending.name, password);
+    } else {
+      set({ status: "loading" });
+      await openInto(set, pending.bytes, pending.name, password);
+    }
   },
 
   cancelPassword: () =>
-    set({ status: "empty", pendingLoad: null, passwordError: null, error: null }),
+    set((s) => ({
+      // Cancelling a merge keeps the current document; cancelling an initial
+      // open returns to the empty state.
+      status: s.pendingLoad?.mode === "merge" ? "ready" : "empty",
+      pendingLoad: null,
+      passwordError: null,
+      error: null,
+    })),
 
   mergeFile: async (file) => {
-    try {
-      get().beginHistory();
-      const bytes = await readBytes(file);
-      const source: PdfSource = { id: nanoid(), name: file.name, bytes };
-      const newPages = await pagesForSource(source);
-      set((s) => ({
-        sources: { ...s.sources, [source.id]: source },
-        pages: [...s.pages, ...newPages],
-        sourceBytes: { ...s.sourceBytes, [source.id]: source.bytes },
-      }));
-    } catch (e) {
-      set({ error: e instanceof Error ? e.message : "Failed to merge PDF" });
-    }
+    const bytes = await readBytes(file);
+    await mergeInto(get, set, bytes, file.name, "");
   },
 
   reset: () => {
@@ -532,11 +534,41 @@ async function openInto(
     if (e instanceof PasswordRequiredError) {
       set({
         status: "password",
-        pendingLoad: { bytes, name },
+        pendingLoad: { bytes, name, mode: "open" },
         passwordError: e.wrongPassword ? e.message : null,
       });
     } else {
       set({ status: "error", error: e instanceof Error ? e.message : "Failed to open PDF" });
+    }
+  }
+}
+
+/** Append a source to the current document, or fall into the password prompt
+ *  (keeping the current document visible). */
+async function mergeInto(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
+  bytes: Uint8Array,
+  name: string,
+  password: string,
+) {
+  try {
+    const source: PdfSource = { id: nanoid(), name, bytes };
+    const newPages = await pagesForSource(source, password);
+    get().beginHistory();
+    set((s) => ({
+      sources: { ...s.sources, [source.id]: source },
+      pages: [...s.pages, ...newPages],
+      sourceBytes: { ...s.sourceBytes, [source.id]: source.bytes },
+      pendingLoad: null,
+      passwordError: null,
+    }));
+    get().showToast(`Added ${newPages.length} page${newPages.length === 1 ? "" : "s"}`, "success");
+  } catch (e) {
+    if (e instanceof PasswordRequiredError) {
+      set({ pendingLoad: { bytes, name, mode: "merge" }, passwordError: e.wrongPassword ? e.message : null });
+    } else {
+      get().showToast("Couldn't merge PDF: " + (e instanceof Error ? e.message : "unknown error"), "error");
     }
   }
 }
