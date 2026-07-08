@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { nanoid } from "nanoid";
-import { openPdfiumDoc } from "@/lib/pdf/pdfium/registry";
 import { useEditor } from "@/lib/store";
 import type {
   Annotation,
@@ -19,6 +18,7 @@ import { ShapeAnnotation } from "./annotations/ShapeAnnotation";
 import { TextNode } from "./annotations/TextNode";
 import { ImageNode } from "./annotations/ImageNode";
 import { EditObjectsLayer } from "./EditObjectsLayer";
+import { PageCanvas } from "./PageCanvas";
 
 const DRAW_TOOLS = new Set(["ink", "highlight", "rect", "ellipse", "line", "arrow"]);
 
@@ -28,7 +28,6 @@ interface Draft {
 }
 
 export function PageView({ page, index }: { page: PageItem; index: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const zoom = useEditor((s) => s.zoom);
@@ -72,22 +71,6 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   const dispH = (swapped ? page.width : page.height) * zoom;
   const mediaW = page.width;
   const mediaH = page.height;
-
-  // Render the raw (unrotated) page bitmap via PDFium; CSS handles display
-  // rotation. Re-renders on zoom and after content edits (editVersion).
-  useEffect(() => {
-    let cancelled = false;
-    const canvas = canvasRef.current;
-    if (!canvas || !source) return;
-    (async () => {
-      const doc = await openPdfiumDoc(source.id, source.bytes);
-      if (cancelled) return;
-      doc.renderPageToCanvas(page.sourcePageIndex, canvas, zoom);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [source, page.sourcePageIndex, zoom, page.editVersion]);
 
   // Lazily enumerate page objects when this page first enters edit mode.
   useEffect(() => {
@@ -258,7 +241,15 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
           transform: `translate(-50%, -50%) rotate(${page.rotation}deg)`,
         }}
       >
-        <canvas ref={canvasRef} className="block h-full w-full" />
+        {source && (
+          <PageCanvas
+            source={source}
+            pageIndex={page.sourcePageIndex}
+            editVersion={page.editVersion}
+            zoom={zoom}
+            className="block h-full w-full"
+          />
+        )}
 
         {/* Annotation render + selection/move/erase layer */}
         <div className="absolute inset-0" style={{ pointerEvents: interactive ? "auto" : "none" }}>
