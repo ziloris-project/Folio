@@ -17,7 +17,7 @@ export function openPdfiumDoc(
   let existing = docs.get(sourceId);
   if (!existing) {
     existing = PdfiumDoc.load(bytes, password);
-    // Don't cache a failed load (e.g. wrong password) — allow a clean retry.
+    // Don't cache a failed load (e.g. wrong password) - allow a clean retry.
     existing.catch(() => {
       if (docs.get(sourceId) === existing) docs.delete(sourceId);
     });

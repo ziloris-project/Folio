@@ -87,7 +87,7 @@ export function Viewport() {
   }, []);
 
   // Keep the "active page" (thumbnail highlight + action target) in sync with
-  // what's actually scrolled into view — the most-visible page wins.
+  // what's actually scrolled into view - the most-visible page wins.
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;

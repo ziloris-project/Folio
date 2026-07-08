@@ -71,7 +71,7 @@ export function EmptyState() {
 
             <p className="mt-5 max-w-md text-balance text-[15px] leading-relaxed text-muted">
               Every tool, unlocked. Rewrite text, sign, reorder pages and export
-              — no account, no watermark, nothing uploaded.
+              - no account, no watermark, nothing uploaded.
             </p>
           </motion.div>
 
@@ -173,7 +173,7 @@ export function EmptyState() {
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-balance text-[15px] leading-relaxed text-muted">
             Most &ldquo;free&rdquo; PDF tools cap your pages, stamp a watermark,
-            or hold export behind a subscription. Folio doesn&rsquo;t — because
+            or hold export behind a subscription. Folio doesn&rsquo;t - because
             it runs on your machine, there&rsquo;s nothing to meter.
           </p>
 

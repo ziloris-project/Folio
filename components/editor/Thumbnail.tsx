@@ -11,7 +11,7 @@ const THUMB_W = 150;
 function ThumbnailImpl({ page }: { page: PageItem }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const source = useEditor((s) => (page.sourceId ? s.sources[page.sourceId] : null));
-  // Only rasterize thumbnails scrolled (near) into the rail — a long document
+  // Only rasterize thumbnails scrolled (near) into the rail - a long document
   // otherwise renders every page's thumbnail bitmap the moment it opens.
   const inView = useInViewport(canvasRef, { rootMargin: "400px 0px" });
   const rendered = useRef<string | null>(null);

@@ -21,7 +21,7 @@ export function Tooltip({
   side?: "top" | "bottom" | "left" | "right";
 }) {
   // Give icon-only triggers an accessible name from the (string) label so
-  // screen readers announce them — the visual tooltip alone isn't enough.
+  // screen readers announce them - the visual tooltip alone isn't enough.
   const trigger =
     typeof label === "string" && isValidElement(children)
       ? cloneElement(children as ReactElement<{ "aria-label"?: string }>, {

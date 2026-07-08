@@ -4,7 +4,7 @@ export const dynamic = "force-static";
 
 const SITE_URL = "https://folio.ziloris.com";
 
-// Single-page app — one canonical URL. Fixed lastModified so the sitemap
+// Single-page app - one canonical URL. Fixed lastModified so the sitemap
 // stays stable between builds (bump when the landing meaningfully changes).
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

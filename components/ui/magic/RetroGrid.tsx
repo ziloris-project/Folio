@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * An animated perspective grid that scrolls toward a vanishing point —
+ * An animated perspective grid that scrolls toward a vanishing point -
  * the neon backdrop for the landing hero. Pure CSS; no JS per frame.
  */
 export function RetroGrid({

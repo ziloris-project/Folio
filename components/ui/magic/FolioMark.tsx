@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /**
  * The Folio logo glyph: a geometric "F" with its stem sliced off at an angle,
  * filled with the cyan->indigo landing gradient. Meant to sit immediately left
- * of the "Folio" wordmark. Hand-built path — not a font letter or stock icon.
+ * of the "Folio" wordmark. Hand-built path - not a font letter or stock icon.
  */
 export function FolioMark({ className }: { className?: string }) {
   return (

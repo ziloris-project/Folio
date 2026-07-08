@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = "https://folio.ziloris.com";
-const TITLE = "Folio — Edit PDFs. No limits. Free.";
+const TITLE = "Folio - Edit PDFs. No limits. Free.";
 const DESCRIPTION =
-  "Folio is a free, no-limits PDF editor that runs entirely in your browser. Edit text, sign, add images and shapes, reorder pages, then export — no account, no watermark, nothing uploaded.";
+  "Folio is a free, no-limits PDF editor that runs entirely in your browser. Edit text, sign, add images and shapes, reorder pages, then export - no account, no watermark, nothing uploaded.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -102,7 +102,7 @@ const jsonLd = {
     "Add text, images, shapes and signatures",
     "Reorder, rotate and delete pages",
     "Export edited PDFs",
-    "Runs entirely client-side — no upload",
+    "Runs entirely client-side - no upload",
   ],
 };
 

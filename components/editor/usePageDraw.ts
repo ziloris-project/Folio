@@ -83,7 +83,7 @@ export function usePageDraw({
   const isDrawing = DRAW_TOOLS.has(activeTool);
 
   // One tracker for an active draw gesture, one that lives for the duration of a
-  // placement (both refresh the cached rect on scroll/resize — see trackRect).
+  // placement (both refresh the cached rect on scroll/resize - see trackRect).
   const drawTracker = useRef<RectTracker | null>(null);
   const placeTracker = useRef<RectTracker | null>(null);
 

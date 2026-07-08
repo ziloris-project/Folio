@@ -60,7 +60,7 @@ export class PdfiumDoc {
       const err = I.FPDF_GetLastError();
       free(I, dataPtr);
       if (err === FPDF_ERR_PASSWORD) throw new PasswordRequiredError(password.length > 0);
-      throw new Error("Could not open PDF — it may be corrupt or an unsupported format.");
+      throw new Error("Could not open PDF - it may be corrupt or an unsupported format.");
     }
     const count = I.FPDF_GetPageCount(handle);
     const doc = new PdfiumDoc(I, handle, dataPtr, count);

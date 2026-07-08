@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
 import { useEditor } from "@/lib/store";
 import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
@@ -85,7 +85,21 @@ export function Inspector() {
     setText(obj?.type === "text" ? obj.text : "");
   }
 
-  // Debounce live text apply — each apply regenerates the page, so we wait for a
+  // Smart edit: selecting a text object drops the caret straight into its editor,
+  // so clicking page text lands you in the text field without a second click
+  // (an image/shape has no editor, so it just stays selected for moving).
+  const isText = obj?.type === "text";
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!isText) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    const end = ta.value.length;
+    ta.setSelectionRange(end, end);
+  }, [objKey, isText]);
+
+  // Debounce live text apply - each apply regenerates the page, so we wait for a
   // pause in typing rather than firing on every keystroke.
   const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const applyTextDebounced = (pageId: string, index: number, value: string) => {
@@ -118,6 +132,7 @@ export function Inspector() {
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted">Text</span>
                 <textarea
+                  ref={textareaRef}
                   value={text}
                   onChange={(e) => {
                     setText(e.target.value);

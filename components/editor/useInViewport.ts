@@ -12,7 +12,7 @@ interface Options {
 /**
  * Report whether `ref`'s element is (near) the viewport. Used to defer the
  * expensive per-page PDFium rasterization until a page is actually on-screen, so
- * opening a large document doesn't rasterize every page at once — and a zoom
+ * opening a large document doesn't rasterize every page at once - and a zoom
  * change only re-rasters the pages you're currently looking at.
  *
  * Falls back to always-visible where IntersectionObserver is unavailable.

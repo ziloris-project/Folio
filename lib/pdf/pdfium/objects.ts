@@ -198,8 +198,8 @@ export function deleteObject(doc: PdfiumDoc, pageIndex: number, objIndex: number
  *
  * Multi-line support: the text may contain newlines; each line becomes its own
  * text object stacked downward by 1.2x the font size, in the run's own rotation
- * frame. (Full reflow of surrounding existing content is not possible — PDFs
- * have no paragraph model — but explicit line breaks are honored.)
+ * frame. (Full reflow of surrounding existing content is not possible - PDFs
+ * have no paragraph model - but explicit line breaks are honored.)
  *
  * Returns the index of the last created object (appended on top), or -1.
  */

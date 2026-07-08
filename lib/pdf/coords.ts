@@ -47,7 +47,7 @@ export function toPagePointFromRect(
 export interface RectTracker {
   /** The element's current viewport rect (kept fresh across scroll/resize). */
   get(): DOMRect;
-  /** Stop listening — call on pointerup / gesture end. */
+  /** Stop listening - call on pointerup / gesture end. */
   dispose(): void;
 }
 

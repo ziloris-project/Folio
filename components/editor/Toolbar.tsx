@@ -18,7 +18,7 @@ import { viewportEl } from "./viewportEl";
 
 const TOOLS: { id: ToolId; icon: typeof Type; label: string }[] = [
   { id: "select", icon: MousePointer2, label: "Select / Move (V)" },
-  { id: "edit", icon: TextCursorInput, label: "Edit content — existing text, borders & images (C)" },
+  { id: "edit", icon: TextCursorInput, label: "Edit content - existing text, borders & images (C)" },
   { id: "text", icon: Type, label: "Text (T)" },
   { id: "ink", icon: Pencil, label: "Draw (D)" },
   { id: "highlight", icon: Highlighter, label: "Highlight (H)" },
@@ -33,7 +33,7 @@ const TOOLS: { id: ToolId; icon: typeof Type; label: string }[] = [
 
 const PALETTE = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#6366f1", "#111827", "#ffffff"];
 
-/** Arm an image/signature for placement — it then follows the cursor until the
+/** Arm an image/signature for placement - it then follows the cursor until the
  *  user clicks a page to drop it (handled in PageView). */
 function beginImagePlacement(dataUrl: string, naturalW: number, naturalH: number) {
   useEditor.getState().setPendingImage({ dataUrl, naturalW, naturalH });

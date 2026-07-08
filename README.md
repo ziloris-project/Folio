@@ -28,18 +28,18 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 
 | Status | Feature |
 | ------ | ------- |
-| Available | Open and render any PDF locally (PDFium-WASM) — nothing is uploaded |
-| Available | Password-protected PDFs — detected on open **and** merge, with a retry prompt |
+| Available | Open and render any PDF locally (PDFium-WASM) - nothing is uploaded |
+| Available | Password-protected PDFs - detected on open **and** merge, with a retry prompt |
 | Available | Merge / append other PDFs into the current document |
-| Available | Page management — reorder (drag), rotate, duplicate, delete, insert blank |
+| Available | Page management - reorder (drag), rotate, duplicate, delete, insert blank |
 | Available | Thumbnail rail with active-page sync (scroll ↔ selection) and click-to-jump |
-| Available | Edit existing content — select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
+| Available | Edit existing content - select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
 | Available | Multi-line text editing with a live, debounced Inspector panel |
-| Available | Annotate — text, freehand ink, highlight, rectangle, ellipse, line and arrow |
+| Available | Annotate - text, freehand ink, highlight, rectangle, ellipse, line and arrow |
 | Available | Insert images and draw-to-sign signatures, placed by clicking on the page |
 | Available | Eraser plus `Delete` / `Backspace` to remove selected objects & annotations |
 | Available | Undo / redo with snapshot history (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) |
-| Available | Zoom — buttons, `Ctrl`/`⌘` + wheel at the cursor, pinch-to-zoom, and fit-to-width toggle |
+| Available | Zoom - buttons, `Ctrl`/`⌘` + wheel at the cursor, pinch-to-zoom, and fit-to-width toggle |
 | Available | Keyboard shortcuts for every tool, plus toast notifications for actions |
 | Available | Export to a real PDF with edits and annotations baked in (pdf-lib) |
 | Planned | Form-field (AcroForm) editing |

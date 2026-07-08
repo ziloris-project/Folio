@@ -119,7 +119,7 @@ export type VectorAnnotation = InkAnnotation | RectLikeAnnotation | LineAnnotati
 
 // ---------------------------------------------------------------------------
 // Existing-content object model (PDFium page objects). These describe content
-// that is ALREADY in the PDF and editable in place — distinct from Annotations,
+// that is ALREADY in the PDF and editable in place - distinct from Annotations,
 // which are new overlay content we add.
 // ---------------------------------------------------------------------------
 

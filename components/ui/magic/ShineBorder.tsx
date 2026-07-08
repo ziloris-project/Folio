@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * A conic neon border that slowly travels around its container. Rendered as a
- * masked overlay so it only paints the 1px ring, never the fill — drop it as a
+ * masked overlay so it only paints the 1px ring, never the fill - drop it as a
  * sibling inside a `relative` element.
  */
 export function ShineBorder({

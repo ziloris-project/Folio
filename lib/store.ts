@@ -55,7 +55,7 @@ interface EditorState {
   selectedPageId: string | null;
   selectedAnnotationId: string | null;
 
-  /** An image/signature awaiting placement — follows the cursor until a page is
+  /** An image/signature awaiting placement - follows the cursor until a page is
    *  clicked (see PageView). null when not placing. */
   pendingImage: { dataUrl: string; naturalW: number; naturalH: number } | null;
 

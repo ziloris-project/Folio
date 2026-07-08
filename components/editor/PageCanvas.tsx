@@ -20,7 +20,7 @@ interface Props {
  * A single page's rasterized bitmap. Two things keep this cheap on large docs:
  *
  *  1. It only rasterizes while near the viewport, so opening a 200-page PDF does
- *     not run 200 PDFium renders up front — pages paint as you scroll to them.
+ *     not run 200 PDFium renders up front - pages paint as you scroll to them.
  *  2. A pure zoom change is *debounced*: the existing bitmap is CSS-scaled to the
  *     new size for instant feedback, then re-rendered at full resolution once the
  *     zoom gesture settles. Content edits (editVersion) and first paint render

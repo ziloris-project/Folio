@@ -40,6 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# PDFium wasm binary — generated artifact, copied from node_modules by the
+# PDFium wasm binary - generated artifact, copied from node_modules by the
 # postinstall script (see package.json "copy-wasm"). Not source.
 /public/pdfium.wasm
