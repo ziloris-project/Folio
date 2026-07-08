@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { memo, useRef, type RefObject } from "react";
 import type { VectorAnnotation } from "@/lib/pdf/types";
 import { useMoveDrag } from "./useMoveDrag";
 
@@ -14,13 +14,13 @@ interface Props {
   mediaW: number;
   mediaH: number;
   overlayRef: RefObject<HTMLElement | null>;
-  onSelect: () => void;
-  onErase: () => void;
+  onSelect: (id: string) => void;
+  onErase: (id: string) => void;
   onChange: (ann: VectorAnnotation) => void;
 }
 
 /** Renders ink / highlight / rect / ellipse / line / arrow inside the page SVG. */
-export function ShapeAnnotation({
+function ShapeAnnotationImpl({
   ann, selected, interactive, eraser, rotation, mediaW, mediaH, zoom, overlayRef,
   onSelect, onErase, onChange,
 }: Props) {
@@ -30,7 +30,7 @@ export function ShapeAnnotation({
     overlayRef, rotation, mediaW, mediaH, zoom,
     onStart: () => {
       snapshot.current = ann;
-      onSelect();
+      onSelect(ann.id);
     },
     onMove: (dx, dy) => onChange(translate(snapshot.current, dx, dy)),
   });
@@ -39,7 +39,7 @@ export function ShapeAnnotation({
     if (!interactive) return;
     if (eraser) {
       e.stopPropagation();
-      onErase();
+      onErase(ann.id);
       return;
     }
     onMoveDown(e);
@@ -110,6 +110,8 @@ export function ShapeAnnotation({
     </g>
   );
 }
+
+export const ShapeAnnotation = memo(ShapeAnnotationImpl);
 
 function inkPath(strokes: { x: number; y: number }[][]) {
   return strokes

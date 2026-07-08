@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { memo, useRef, type RefObject } from "react";
 import type { ImageAnnotation } from "@/lib/pdf/types";
 import { useMoveDrag } from "./useMoveDrag";
 
@@ -14,12 +14,12 @@ interface Props {
   mediaW: number;
   mediaH: number;
   overlayRef: RefObject<HTMLElement | null>;
-  onSelect: () => void;
-  onErase: () => void;
+  onSelect: (id: string) => void;
+  onErase: (id: string) => void;
   onChange: (ann: ImageAnnotation) => void;
 }
 
-export function ImageNode({
+function ImageNodeImpl({
   ann, zoom, selected, interactive, eraser, rotation, mediaW, mediaH, overlayRef,
   onSelect, onErase, onChange,
 }: Props) {
@@ -29,7 +29,7 @@ export function ImageNode({
     overlayRef, rotation, mediaW, mediaH, zoom,
     onStart: () => {
       snapshot.current = ann;
-      onSelect();
+      onSelect(ann.id);
     },
     onMove: (dx, dy) => onChange({ ...snapshot.current, x: snapshot.current.x + dx, y: snapshot.current.y + dy }),
   });
@@ -38,7 +38,7 @@ export function ImageNode({
   const resizeSnap = useRef<ImageAnnotation>(ann);
   const onResizeDown = useMoveDrag({
     overlayRef, rotation, mediaW, mediaH, zoom,
-    onStart: () => { resizeSnap.current = ann; onSelect(); },
+    onStart: () => { resizeSnap.current = ann; onSelect(ann.id); },
     onMove: (dx) => {
       const s = resizeSnap.current;
       const ratio = s.height / s.width;
@@ -61,7 +61,7 @@ export function ImageNode({
       }}
       onPointerDown={(e) => {
         if (!interactive) return;
-        if (eraser) { e.stopPropagation(); onErase(); return; }
+        if (eraser) { e.stopPropagation(); onErase(ann.id); return; }
         onMoveDown(e);
       }}
     >
@@ -76,3 +76,5 @@ export function ImageNode({
     </div>
   );
 }
+
+export const ImageNode = memo(ImageNodeImpl);

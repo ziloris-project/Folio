@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { nanoid } from "nanoid";
 import { useEditor } from "@/lib/store";
 import type {
@@ -27,7 +27,7 @@ interface Draft {
   start: { x: number; y: number };
 }
 
-export function PageView({ page, index }: { page: PageItem; index: number }) {
+function PageViewImpl({ page, index }: { page: PageItem; index: number }) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const zoom = useEditor((s) => s.zoom);
@@ -41,6 +41,12 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
   const selectAnnotation = useEditor((s) => s.selectAnnotation);
   const selectPage = useEditor((s) => s.selectPage);
   const setTool = useEditor((s) => s.setTool);
+
+  // Stable per-page handlers so the (memoized) annotation nodes don't re-render
+  // on every draft-draw frame just because a fresh inline closure was created.
+  const handleSelect = useCallback((id: string) => selectAnnotation(id), [selectAnnotation]);
+  const handleErase = useCallback((id: string) => removeAnnotation(page.id, id), [removeAnnotation, page.id]);
+  const handleChange = useCallback((n: Annotation) => updateAnnotation(page.id, n), [updateAnnotation, page.id]);
 
   // Existing-content editing
   const objects = useEditor((s) => s.pageObjects[page.id]);
@@ -274,9 +280,9 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
                   mediaW={mediaW}
                   mediaH={mediaH}
                   overlayRef={overlayRef}
-                  onSelect={() => selectAnnotation(a.id)}
-                  onErase={() => removeAnnotation(page.id, a.id)}
-                  onChange={(n) => updateAnnotation(page.id, n)}
+                  onSelect={handleSelect}
+                  onErase={handleErase}
+                  onChange={handleChange}
                 />
               ))}
           </svg>
@@ -295,9 +301,9 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
                 mediaW={mediaW}
                 mediaH={mediaH}
                 overlayRef={overlayRef}
-                onSelect={() => selectAnnotation(a.id)}
-                onErase={() => removeAnnotation(page.id, a.id)}
-                onChange={(n) => updateAnnotation(page.id, n)}
+                onSelect={handleSelect}
+                onErase={handleErase}
+                onChange={handleChange}
               />
             ))}
 
@@ -315,9 +321,9 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
                 mediaW={mediaW}
                 mediaH={mediaH}
                 overlayRef={overlayRef}
-                onSelect={() => selectAnnotation(a.id)}
-                onErase={() => removeAnnotation(page.id, a.id)}
-                onChange={(n) => updateAnnotation(page.id, n)}
+                onSelect={handleSelect}
+                onErase={handleErase}
+                onChange={handleChange}
               />
             ))}
         </div>
@@ -374,3 +380,5 @@ export function PageView({ page, index }: { page: PageItem; index: number }) {
     </div>
   );
 }
+
+export const PageView = memo(PageViewImpl);

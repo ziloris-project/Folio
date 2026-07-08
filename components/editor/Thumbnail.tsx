@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { openPdfiumDoc } from "@/lib/pdf/pdfium/registry";
 import { useEditor } from "@/lib/store";
 import type { PageItem } from "@/lib/pdf/types";
@@ -8,7 +8,7 @@ import { useInViewport } from "./useInViewport";
 
 const THUMB_W = 150;
 
-export function Thumbnail({ page }: { page: PageItem }) {
+function ThumbnailImpl({ page }: { page: PageItem }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const source = useEditor((s) => (page.sourceId ? s.sources[page.sourceId] : null));
   // Only rasterize thumbnails scrolled (near) into the rail — a long document
@@ -52,3 +52,5 @@ export function Thumbnail({ page }: { page: PageItem }) {
     </div>
   );
 }
+
+export const Thumbnail = memo(ThumbnailImpl);

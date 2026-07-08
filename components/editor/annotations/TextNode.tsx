@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import type { TextAnnotation } from "@/lib/pdf/types";
 import { useEditor } from "@/lib/store";
 import { useMoveDrag } from "./useMoveDrag";
@@ -15,12 +15,12 @@ interface Props {
   mediaW: number;
   mediaH: number;
   overlayRef: RefObject<HTMLElement | null>;
-  onSelect: () => void;
-  onErase: () => void;
+  onSelect: (id: string) => void;
+  onErase: (id: string) => void;
   onChange: (ann: TextAnnotation) => void;
 }
 
-export function TextNode({
+function TextNodeImpl({
   ann, zoom, selected, interactive, eraser, rotation, mediaW, mediaH, overlayRef,
   onSelect, onErase, onChange,
 }: Props) {
@@ -36,7 +36,7 @@ export function TextNode({
     overlayRef, rotation, mediaW, mediaH, zoom,
     onStart: () => {
       snapshot.current = ann;
-      onSelect();
+      onSelect(ann.id);
     },
     onMove: (dx, dy) => onChange({ ...snapshot.current, x: snapshot.current.x + dx, y: snapshot.current.y + dy }),
   });
@@ -73,7 +73,7 @@ export function TextNode({
         }}
         onBlur={() => {
           setEditing(false);
-          if (ann.text.trim() === "") onErase(); // drop boxes left empty
+          if (ann.text.trim() === "") onErase(ann.id); // drop boxes left empty
         }}
         style={{ ...style, pointerEvents: "auto", resize: "none", background: "rgba(99,102,241,0.06)", outline: "1px solid #6366f1", padding: 0, overflow: "hidden", fieldSizing: "content", minWidth: 2 * ann.fontSize * zoom } as React.CSSProperties}
         rows={Math.max(1, ann.text.split("\n").length)}
@@ -87,7 +87,7 @@ export function TextNode({
       style={{ ...style, width: "max-content", cursor: eraser ? "crosshair" : "move", whiteSpace: "pre-wrap", outline: selected ? "1px dashed #6366f1" : "none" }}
       onPointerDown={(e) => {
         if (!interactive) return;
-        if (eraser) { e.stopPropagation(); onErase(); return; }
+        if (eraser) { e.stopPropagation(); onErase(ann.id); return; }
         // Start a potential move; if the pointer doesn't really move and the box
         // was already selected, treat it as a click-to-edit (so a second click
         // enters editing without needing a double-click).
@@ -115,3 +115,5 @@ export function TextNode({
     </div>
   );
 }
+
+export const TextNode = memo(TextNodeImpl);
