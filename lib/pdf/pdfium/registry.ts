@@ -3,7 +3,7 @@
 /**
  * Process-wide cache of loaded PdfiumDoc instances, keyed by source id. Kept
  * outside the zustand store so the (non-serializable, mutable) PDFium handles
- * don't trigger React re-renders. Mirrors the pdf.js docCache in engine.ts.
+ * don't trigger React re-renders.
  */
 import { PdfiumDoc } from "./doc";
 

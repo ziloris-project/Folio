@@ -1,23 +1,11 @@
 "use client";
 
-import { memo, useMemo, useRef, type RefObject } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { VectorAnnotation } from "@/lib/pdf/types";
 import { useMoveDrag } from "./useMoveDrag";
+import type { AnnotationNodeProps } from "./types";
 
-interface Props {
-  ann: VectorAnnotation;
-  selected: boolean;
-  interactive: boolean;
-  eraser: boolean;
-  zoom: number;
-  rotation: number;
-  mediaW: number;
-  mediaH: number;
-  overlayRef: RefObject<HTMLElement | null>;
-  onSelect: (id: string) => void;
-  onErase: (id: string) => void;
-  onChange: (ann: VectorAnnotation) => void;
-}
+type Props = AnnotationNodeProps<VectorAnnotation>;
 
 /** Renders ink / highlight / rect / ellipse / line / arrow inside the page SVG. */
 function ShapeAnnotationImpl({

@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-// The editor is browser-only (pdf.js web worker, canvas, File APIs), so we load
-// it client-side with no SSR. This also keeps the heavy pdf.js/pdf-lib bundles
-// out of the server graph.
+// The editor is browser-only (PDFium-WASM, canvas, File APIs), so we load it
+// client-side with no SSR. This also keeps the heavy PDFium/pdf-lib bundles out
+// of the server graph.
 const Editor = dynamic(
   () => import("@/components/editor/Editor").then((m) => m.Editor),
   {

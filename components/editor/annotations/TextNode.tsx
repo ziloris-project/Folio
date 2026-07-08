@@ -1,24 +1,12 @@
 "use client";
 
-import { memo, useEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { TextAnnotation } from "@/lib/pdf/types";
 import { useEditor } from "@/lib/store";
 import { useMoveDrag } from "./useMoveDrag";
+import type { AnnotationNodeProps } from "./types";
 
-interface Props {
-  ann: TextAnnotation;
-  zoom: number;
-  selected: boolean;
-  interactive: boolean;
-  eraser: boolean;
-  rotation: number;
-  mediaW: number;
-  mediaH: number;
-  overlayRef: RefObject<HTMLElement | null>;
-  onSelect: (id: string) => void;
-  onErase: (id: string) => void;
-  onChange: (ann: TextAnnotation) => void;
-}
+type Props = AnnotationNodeProps<TextAnnotation>;
 
 function TextNodeImpl({
   ann, zoom, selected, interactive, eraser, rotation, mediaW, mediaH, overlayRef,

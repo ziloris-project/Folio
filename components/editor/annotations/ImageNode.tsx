@@ -1,23 +1,11 @@
 "use client";
 
-import { memo, useRef, type RefObject } from "react";
+import { memo, useRef } from "react";
 import type { ImageAnnotation } from "@/lib/pdf/types";
 import { useMoveDrag } from "./useMoveDrag";
+import type { AnnotationNodeProps } from "./types";
 
-interface Props {
-  ann: ImageAnnotation;
-  zoom: number;
-  selected: boolean;
-  interactive: boolean;
-  eraser: boolean;
-  rotation: number;
-  mediaW: number;
-  mediaH: number;
-  overlayRef: RefObject<HTMLElement | null>;
-  onSelect: (id: string) => void;
-  onErase: (id: string) => void;
-  onChange: (ann: ImageAnnotation) => void;
-}
+type Props = AnnotationNodeProps<ImageAnnotation>;
 
 function ImageNodeImpl({
   ann, zoom, selected, interactive, eraser, rotation, mediaW, mediaH, overlayRef,

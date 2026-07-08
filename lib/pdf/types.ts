@@ -2,9 +2,9 @@
  * Core document model for the editor.
  *
  * Coordinate convention for ALL annotations: page-local points (1 unit = 1/72"),
- * origin at the TOP-LEFT of the *unrotated* page, y growing downward. This matches
- * a pdf.js viewport rendered at scale 1.0, which keeps on-screen math trivial.
- * The exporter (pdf-lib) flips y and accounts for rotation when baking.
+ * origin at the TOP-LEFT of the *unrotated* page, y growing downward. At zoom 1
+ * one point maps to one CSS pixel of the rendered media, which keeps on-screen
+ * math trivial. The exporter (pdf-lib) flips y and accounts for rotation when baking.
  */
 
 export type SourceId = string;
