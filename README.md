@@ -28,18 +28,22 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 
 | Status | Feature |
 | ------ | ------- |
-| Available | Open and render PDFs (PDFium-WASM), with page rotation |
-| Available | Page thumbnail rail with page operations |
-| Available | Select and move existing text / image objects on the page |
-| Available | Replace fonts on existing text runs; multi-line text editing |
-| Available | Add text, image and shape / ink / line annotations |
-| Available | Draw-to-sign signature dialog |
-| Available | Inspector panel for fine-grained content editing |
+| Available | Open and render any PDF locally (PDFium-WASM) — nothing is uploaded |
+| Available | Password-protected PDFs — detected on open **and** merge, with a retry prompt |
+| Available | Merge / append other PDFs into the current document |
+| Available | Page management — reorder (drag), rotate, duplicate, delete, insert blank |
+| Available | Thumbnail rail with active-page sync (scroll ↔ selection) and click-to-jump |
+| Available | Edit existing content — select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
+| Available | Multi-line text editing with a live, debounced Inspector panel |
+| Available | Annotate — text, freehand ink, highlight, rectangle, ellipse, line and arrow |
+| Available | Insert images and draw-to-sign signatures, placed by clicking on the page |
+| Available | Eraser plus `Delete` / `Backspace` to remove selected objects & annotations |
 | Available | Undo / redo with snapshot history (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) |
-| Available | Export / save (annotations baked in via pdf-lib) |
-| Planned | Page insert / delete / merge across documents |
-| Planned | Form-field editing |
-| Planned | Mobile / touch polish |
+| Available | Zoom — buttons, `Ctrl`/`⌘` + wheel at the cursor, pinch-to-zoom, and fit-to-width toggle |
+| Available | Keyboard shortcuts for every tool, plus toast notifications for actions |
+| Available | Export to a real PDF with edits and annotations baked in (pdf-lib) |
+| Planned | Form-field (AcroForm) editing |
+| Planned | Broader mobile / touch polish |
 
 ## Tech stack
 
@@ -92,7 +96,7 @@ lib/
 
 ## Roadmap
 
-Folio is early. The near-term focus is rounding out page management (insert/delete/merge), form-field support, and touch/mobile interactions, followed by the hosted release at **folio.ziloris.com**. Issues and ideas are very welcome.
+Page management (reorder, rotate, duplicate, delete, insert, merge) and the core editing/annotation toolset are in place. The near-term focus is form-field (AcroForm) support and broader touch/mobile polish, followed by the hosted release at **folio.ziloris.com**. Issues and ideas are very welcome.
 
 ## Contributing
 
