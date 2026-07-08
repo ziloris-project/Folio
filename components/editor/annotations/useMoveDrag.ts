@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, type PointerEvent as RPointerEvent, type RefObject } from "react";
-import { toPagePoint } from "@/lib/pdf/coords";
+import { toPagePointFromRect, trackRect } from "@/lib/pdf/coords";
 import { useEditor } from "@/lib/store";
 
 interface Options {
@@ -30,7 +30,10 @@ export function useMoveDrag({ overlayRef, rotation, mediaW, mediaH, zoom, onStar
       if (!el) return;
       e.stopPropagation();
       onStart();
-      start.current = toPagePoint(e, el, rotation, mediaW, mediaH, zoom);
+      // Measure the overlay once for the whole gesture (kept fresh on scroll)
+      // so each move doesn't force a layout via getBoundingClientRect().
+      const tracker = trackRect(el);
+      start.current = toPagePointFromRect(e, tracker.get(), rotation, mediaW, mediaH, zoom);
       (e.target as Element).setPointerCapture?.(e.pointerId);
 
       // Checkpoint history only once the pointer actually moves, so a plain
@@ -42,11 +45,12 @@ export function useMoveDrag({ overlayRef, rotation, mediaW, mediaH, zoom, onStar
           useEditor.getState().beginHistory();
           checkpointed = true;
         }
-        const p = toPagePoint(ev, el, rotation, mediaW, mediaH, zoom);
+        const p = toPagePointFromRect(ev, tracker.get(), rotation, mediaW, mediaH, zoom);
         onMove(p.x - start.current.x, p.y - start.current.y);
       };
       const up = () => {
         start.current = null;
+        tracker.dispose();
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
       };

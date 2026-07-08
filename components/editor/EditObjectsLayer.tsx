@@ -2,7 +2,7 @@
 
 import { useState, type RefObject } from "react";
 import type { PageObject } from "@/lib/pdf/types";
-import { toPagePoint } from "@/lib/pdf/coords";
+import { toPagePointFromRect, trackRect } from "@/lib/pdf/coords";
 
 interface Props {
   objects: PageObject[];
@@ -44,17 +44,20 @@ export function EditObjectsLayer({
     onSelect(index);
     const el = overlayRef.current;
     if (!el) return;
-    const start = toPagePoint(e, el, rotation, mediaW, mediaH, zoom);
+    // Measure once per gesture (see trackRect) to keep moves off the layout path.
+    const tracker = trackRect(el);
+    const start = toPagePointFromRect(e, tracker.get(), rotation, mediaW, mediaH, zoom);
     (e.target as Element).setPointerCapture?.(e.pointerId);
 
     const move = (ev: PointerEvent) => {
-      const p = toPagePoint(ev, el, rotation, mediaW, mediaH, zoom);
+      const p = toPagePointFromRect(ev, tracker.get(), rotation, mediaW, mediaH, zoom);
       setDrag({ index, dx: p.x - start.x, dy: p.y - start.y });
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      const p = toPagePoint(ev, el, rotation, mediaW, mediaH, zoom);
+      const p = toPagePointFromRect(ev, tracker.get(), rotation, mediaW, mediaH, zoom);
+      tracker.dispose();
       const dx = p.x - start.x;
       const dy = p.y - start.y;
       setDrag(null);
