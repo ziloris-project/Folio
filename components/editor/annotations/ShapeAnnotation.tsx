@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useRef, type RefObject } from "react";
+import { memo, useMemo, useRef, type RefObject } from "react";
 import type { VectorAnnotation } from "@/lib/pdf/types";
 import { useMoveDrag } from "./useMoveDrag";
 
@@ -53,16 +53,19 @@ function ShapeAnnotationImpl({
     },
   };
 
-  const bbox = boundingBox(ann);
+  // Geometry only depends on the annotation itself; recompute when it changes,
+  // not on every unrelated re-render (and the ink path is used twice).
+  const bbox = useMemo(() => boundingBox(ann), [ann]);
+  const inkD = useMemo(() => (ann.type === "ink" ? inkPath(ann.strokes) : ""), [ann]);
 
   return (
     <g>
       {ann.type === "ink" && (
         <>
           {/* fat invisible hit area */}
-          <path d={inkPath(ann.strokes)} fill="none" stroke="transparent"
+          <path d={inkD} fill="none" stroke="transparent"
             strokeWidth={ann.width + 8} {...common} />
-          <path d={inkPath(ann.strokes)} fill="none" stroke={ann.color}
+          <path d={inkD} fill="none" stroke={ann.color}
             strokeWidth={ann.width} strokeLinecap="round" strokeLinejoin="round"
             opacity={ann.opacity} style={{ pointerEvents: "none" }} />
         </>
@@ -134,11 +137,21 @@ function translate(ann: VectorAnnotation, dx: number, dy: number): VectorAnnotat
 function boundingBox(ann: VectorAnnotation) {
   switch (ann.type) {
     case "ink": {
-      const pts = ann.strokes.flat();
-      if (!pts.length) return null;
-      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-      const x = Math.min(...xs), y = Math.min(...ys);
-      return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let n = 0;
+      // Iterate instead of Math.min(...xs): a long stroke has thousands of
+      // points, and spreading that many args can overflow the call stack.
+      for (const stroke of ann.strokes) {
+        for (const p of stroke) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+          n++;
+        }
+      }
+      if (!n) return null;
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     }
     case "line":
     case "arrow": {
