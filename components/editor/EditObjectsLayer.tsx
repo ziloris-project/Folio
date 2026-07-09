@@ -49,22 +49,33 @@ export function EditObjectsLayer({
     const start = toPagePointFromRect(e, tracker.get(), rotation, mediaW, mediaH, zoom);
     (e.target as Element).setPointerCapture?.(e.pointerId);
 
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      tracker.dispose();
+    };
     const move = (ev: PointerEvent) => {
       const p = toPagePointFromRect(ev, tracker.get(), rotation, mediaW, mediaH, zoom);
       setDrag({ index, dx: p.x - start.x, dy: p.y - start.y });
     };
     const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
       const p = toPagePointFromRect(ev, tracker.get(), rotation, mediaW, mediaH, zoom);
-      tracker.dispose();
+      cleanup();
       const dx = p.x - start.x;
       const dy = p.y - start.y;
       setDrag(null);
       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) onMoveCommit(index, dx, dy);
     };
+    // pointercancel (browser took over the gesture, common on touch): abort the
+    // move - drop the visual offset and commit nothing.
+    const cancel = () => {
+      cleanup();
+      setDrag(null);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   }
 
   return (

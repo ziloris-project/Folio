@@ -53,9 +53,13 @@ export function useMoveDrag({ overlayRef, rotation, mediaW, mediaH, zoom, onStar
         tracker.dispose();
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      // pointercancel fires when the browser takes over the gesture (common on
+      // touch); end the drag so the listeners and rect tracker don't leak.
+      window.addEventListener("pointercancel", up);
     },
     [overlayRef, rotation, mediaW, mediaH, zoom, onStart, onMove],
   );
