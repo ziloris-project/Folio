@@ -138,6 +138,14 @@ export function Inspector() {
                     setText(e.target.value);
                     applyTextDebounced(selectedObject.pageId, obj.index, e.target.value);
                   }}
+                  onKeyDown={(e) => {
+                    // Esc leaves the field (Enter still inserts a newline);
+                    // blur commits any pending change, matching on-page text.
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
+                  }}
                   onBlur={() => {
                     if (applyTimer.current) clearTimeout(applyTimer.current);
                     if (text !== obj.text) void editObjectText(selectedObject.pageId, obj.index, text);
