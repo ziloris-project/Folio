@@ -223,6 +223,9 @@ export function Toolbar() {
                 <button
                   key={c}
                   onClick={() => setToolSettings({ color: c })}
+                  aria-label={`Color ${c}`}
+                  aria-pressed={tool.color === c}
+                  title={c}
                   className="h-5 w-5 rounded-full ring-1 ring-border transition hover:scale-110"
                   style={{ background: c, outline: tool.color === c ? "2px solid var(--accent)" : "none", outlineOffset: 1 }}
                 />
@@ -231,6 +234,8 @@ export function Toolbar() {
                 type="color"
                 value={tool.color}
                 onChange={(e) => setToolSettings({ color: e.target.value })}
+                aria-label="Custom color"
+                title="Custom color"
                 className="h-5 w-6 cursor-pointer rounded bg-transparent"
               />
             </div>
