@@ -24,6 +24,14 @@ const FPDF_ANNOT = 0x01;
 const FPDF_REVERSE_BYTE_ORDER = 0x10;
 const FPDF_ERR_PASSWORD = 4;
 
+// Raster caps. Without them, zoom 6x on a hi-DPI screen asks for a ~72-megapixel
+// (~288 MB) bitmap per page, which can exhaust memory and, worse, exceed the
+// browser's maximum canvas area (as low as ~16.7 MP on iOS Safari) and silently
+// render nothing. We keep the CSS display size and only shrink the backing
+// bitmap, so an over-cap page just loses a little sharpness at extreme zoom.
+const MAX_CANVAS_DIM = 8192; // max width/height in device pixels
+const MAX_CANVAS_PIXELS = 16_777_216; // 4096 * 4096, safe across browsers
+
 /** Thrown when a PDF needs a password (or the supplied one was wrong). */
 export class PasswordRequiredError extends Error {
   /** True if a password was supplied and rejected (vs. first prompt). */
@@ -123,8 +131,18 @@ export class PdfiumDoc {
     const w = I.FPDF_GetPageWidthF(page);
     const h = I.FPDF_GetPageHeightF(page);
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    const pw = Math.max(1, Math.round(w * scale * dpr));
-    const ph = Math.max(1, Math.round(h * scale * dpr));
+    // Desired device-pixel size, then a single downscale factor that satisfies
+    // every canvas limit at once (per-dimension and total area).
+    const wantW = w * scale * dpr;
+    const wantH = h * scale * dpr;
+    const fit = Math.min(
+      1,
+      MAX_CANVAS_DIM / wantW,
+      MAX_CANVAS_DIM / wantH,
+      Math.sqrt(MAX_CANVAS_PIXELS / (wantW * wantH)),
+    );
+    const pw = Math.max(1, Math.round(wantW * fit));
+    const ph = Math.max(1, Math.round(wantH * fit));
 
     const bmp = I.FPDFBitmap_Create(pw, ph, 1); // alpha => BGRA
     I.FPDFBitmap_FillRect(bmp, 0, 0, pw, ph, 0xffffffff); // white page
