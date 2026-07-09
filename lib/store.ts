@@ -281,6 +281,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   deletePage: (id) => {
+    // A document must keep at least one page; deleting the last would leave a
+    // blank editor with no way back. (The rail's delete button is also disabled
+    // at one page, but guard the store too, and skip the dead undo checkpoint.)
+    if (get().pages.length <= 1) return;
     get().beginHistory();
     set((s) => {
       const pages = s.pages.filter((p) => p.id !== id);
