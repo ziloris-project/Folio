@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEditor } from "@/lib/store";
 import type { ToolId } from "@/lib/pdf/types";
+import { validateImageFile } from "@/lib/files";
 import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
 import { SignatureDialog } from "./SignatureDialog";
@@ -74,6 +75,11 @@ export function Toolbar() {
 
   function onImageFile(file: File | undefined) {
     if (!file) return;
+    const check = validateImageFile(file);
+    if (!check.ok) {
+      useEditor.getState().showToast(check.error ?? "Unsupported image.", "error");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;

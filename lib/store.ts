@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
 import { features } from "./config";
+import { validateDocumentFile, validatePdfFile } from "./files";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
 import {
@@ -198,6 +199,11 @@ export const useEditor = create<EditorState>((set, get) => ({
   future: [],
 
   loadFile: async (file) => {
+    const check = validateDocumentFile(file);
+    if (!check.ok) {
+      set({ status: "error", error: check.error });
+      return;
+    }
     set({ status: "loading", error: null });
     try {
       // Word-processor documents are converted to an editable-text PDF in the
@@ -239,6 +245,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     })),
 
   mergeFile: async (file) => {
+    const check = validatePdfFile(file);
+    if (!check.ok) {
+      get().showToast(check.error ?? "Couldn't merge that file.", "error");
+      return;
+    }
     const bytes = await readBytes(file);
     await mergeInto(get, set, bytes, file.name, "");
   },
