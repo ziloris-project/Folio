@@ -101,7 +101,7 @@ export function EditObjectsLayer({
               fill="transparent"
               stroke={selected ? "#6366f1" : isHovered ? "#6366f199" : "transparent"}
               strokeWidth={(selected ? 1.5 : 1) / zoom}
-              style={{ cursor: "move", pointerEvents: "all" }}
+              style={{ cursor: o.type === "text" ? "text" : "move", pointerEvents: "all" }}
               onPointerEnter={() => setHovered(o.index)}
               onPointerLeave={() => setHovered((h) => (h === o.index ? null : h))}
               onPointerDown={(e) => startDrag(e, o.index)}

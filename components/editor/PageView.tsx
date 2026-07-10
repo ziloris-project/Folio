@@ -34,18 +34,27 @@ function PageViewImpl({ page, index }: { page: PageItem; index: number }) {
   const handleErase = useCallback((id: string) => removeAnnotation(page.id, id), [removeAnnotation, page.id]);
   const handleChange = useCallback((n: Annotation) => updateAnnotation(page.id, n), [updateAnnotation, page.id]);
 
-  // Existing-content (edit mode) object layer
+  // Existing-content object layer
   const objects = useEditor((s) => s.pageObjects[page.id]);
   const selectedObject = useEditor((s) => s.selectedObject);
   const refreshObjects = useEditor((s) => s.refreshObjects);
   const selectObjectAction = useEditor((s) => s.selectObject);
   const moveObjectBy = useEditor((s) => s.moveObjectBy);
+  const selectedPageId = useEditor((s) => s.selectedPageId);
+  const setTool = useEditor((s) => s.setTool);
 
   // Floating image/signature placement
   const pendingImage = useEditor((s) => s.pendingImage);
 
   const editMode = activeTool === "edit";
+  const selectMode = activeTool === "select";
   const placing = pendingImage !== null;
+
+  // Existing content is clickable in Edit mode, and - so clicking page text
+  // "just works" - also in the default Select tool, but only on the active page
+  // (a single click there auto-switches to Edit on that object). Limiting Select
+  // hit-testing to the active page avoids enumerating every page's objects.
+  const showObjects = editMode || (selectMode && page.id === selectedPageId);
 
   // Size a pending image to at most half the page width, preserving aspect.
   const placeSize = pendingImage
@@ -61,10 +70,11 @@ function PageViewImpl({ page, index }: { page: PageItem; index: number }) {
   const mediaW = page.width;
   const mediaH = page.height;
 
-  // Lazily enumerate page objects when this page first enters edit mode.
+  // Lazily enumerate page objects when this page first needs them (edit mode, or
+  // the active page in select mode).
   useEffect(() => {
-    if (editMode && source && !objects) void refreshObjects(page.id);
-  }, [editMode, source, objects, page.id, refreshObjects]);
+    if (showObjects && source && !objects) void refreshObjects(page.id);
+  }, [showObjects, source, objects, page.id, refreshObjects]);
 
   const isDrawing = DRAW_TOOLS.has(activeTool);
   const interactive = activeTool === "select" || activeTool === "eraser";
@@ -200,8 +210,9 @@ function PageViewImpl({ page, index }: { page: PageItem; index: number }) {
           {...handlers}
         />
 
-        {/* Existing-content object selection/move layer (edit mode, on top) */}
-        {editMode && objects && (
+        {/* Existing-content object selection/move layer (on top). Active in Edit
+            mode and, for the active page, in Select mode too. */}
+        {showObjects && objects && (
           <EditObjectsLayer
             objects={objects}
             selectedIndex={selectedObject?.pageId === page.id ? selectedObject.index : null}
@@ -210,7 +221,13 @@ function PageViewImpl({ page, index }: { page: PageItem; index: number }) {
             mediaW={mediaW}
             mediaH={mediaH}
             overlayRef={overlayRef}
-            onSelect={(i) => selectObjectAction({ pageId: page.id, index: i })}
+            onSelect={(i) => {
+              // Auto tool: clicking existing content while in Select mode enters
+              // Edit mode on that object (text lands straight in its editor via
+              // the Inspector's smart-edit focus).
+              if (!editMode) setTool("edit");
+              selectObjectAction({ pageId: page.id, index: i });
+            }}
             onMoveCommit={(i, dx, dy) => void moveObjectBy(page.id, i, dx, dy)}
           />
         )}
