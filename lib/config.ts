@@ -22,6 +22,9 @@ export const features = {
   docImport: true,
 
   // ---- Not yet supported / experimental (keep false until built) ----
+  /** Group per-glyph text objects into editable words. Algorithm landed
+   *  (lib/pdf/pdfium/grouping.ts); UI wiring + edit path pending verification. */
+  textGrouping: false,
   /** Multi-line paragraph reflow of existing text runs. */
   textReflow: false,
   /** AcroForm form-field detection and filling. */
