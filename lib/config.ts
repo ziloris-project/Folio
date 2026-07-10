@@ -27,6 +27,9 @@ export const features = {
   /** In-place editing of existing content objects + annotation tools. */
   contentEdit: bool(process.env.NEXT_PUBLIC_FEATURE_CONTENT_EDIT, true),
 
+  /** Split / extract a page into a separate PDF. Shipped; flag can hide it. */
+  pageExtract: bool(process.env.NEXT_PUBLIC_FEATURE_PAGE_EXTRACT, true),
+
   // ---- Not yet supported / experimental (default off) ----
   /** Multi-line paragraph reflow of existing text runs. */
   textReflow: bool(process.env.NEXT_PUBLIC_FEATURE_TEXT_REFLOW),
@@ -36,8 +39,6 @@ export const features = {
   redaction: bool(process.env.NEXT_PUBLIC_FEATURE_REDACTION),
   /** OCR for scanned / image-only PDFs. */
   ocr: bool(process.env.NEXT_PUBLIC_FEATURE_OCR),
-  /** Split / extract selected pages into a separate PDF. */
-  pageExtract: bool(process.env.NEXT_PUBLIC_FEATURE_PAGE_EXTRACT),
   /** Set or remove a password (encryption) on export. */
   encryptExport: bool(process.env.NEXT_PUBLIC_FEATURE_ENCRYPT_EXPORT),
   /** Cryptographic digital signatures (vs. drawn image signatures). */

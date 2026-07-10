@@ -6,8 +6,10 @@ import {
   Trash2,
   Copy,
   Plus,
+  FileDown,
 } from "lucide-react";
 import { useEditor } from "@/lib/store";
+import { features } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { Thumbnail } from "./Thumbnail";
 import { Tooltip } from "../ui/Tooltip";
@@ -37,6 +39,19 @@ export function Thumbnails() {
   function scrollToPage(id: string) {
     selectPage(id);
     document.getElementById(`page-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function extractPage(id: string, pageNumber: number) {
+    try {
+      const { exportPdf } = await import("@/lib/pdf/exportDocument");
+      const name = await exportPdf({ pageIds: [id], suffix: `-page-${pageNumber}` });
+      useEditor.getState().showToast(`Extracted ${name}`, "success");
+    } catch (e) {
+      useEditor.getState().showToast(
+        "Failed to extract page: " + (e instanceof Error ? e.message : String(e)),
+        "error",
+      );
+    }
   }
 
   return (
@@ -107,6 +122,16 @@ export function Thumbnails() {
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </Tooltip>
+                  {features.pageExtract && (
+                    <Tooltip label="Extract as PDF" side="top">
+                      <button
+                        onClick={() => void extractPage(page.id, i + 1)}
+                        className="rounded p-1 text-muted hover:text-foreground hover:bg-panel-2"
+                      >
+                        <FileDown className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
+                  )}
                   <Tooltip label="Delete" side="top">
                     <button
                       onClick={() => deletePage(page.id)}
