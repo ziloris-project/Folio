@@ -8,9 +8,11 @@ in-progress items live in [.env.example](.env.example).
 
 - Open, render and navigate PDFs (PDFium-WASM), including password-protected
   files (detected on open **and** merge, with a retry prompt)
+- Open Word documents (`.docx`, `.rtf`) by converting them to an editable-text
+  PDF entirely in the browser (content and structure, not exact layout)
 - Merge / append other PDFs into the current document
 - Page operations: drag-reorder, rotate, duplicate, delete (keeps the last
-  page), insert blank page
+  page), insert blank page, and extract a single page as its own PDF
 - Thumbnail rail with active-page sync and click-to-jump
 - Edit existing content objects in place: move, retype, recolor (fill/stroke),
   stroke width, font size, delete
@@ -24,15 +26,17 @@ in-progress items live in [.env.example](.env.example).
 
 ## Next up (prioritized)
 
-1. **Split / extract pages** (`FEATURE_PAGE_EXTRACT`) - select pages and export
-   them as a separate PDF. Low effort; reuses the export pipeline. **Start here.**
-2. **Real PDF annotations on export** - emit proper text-markup / shape / link
+1. **Real PDF annotations on export** - emit proper text-markup / shape / link
    annotations instead of flattening everything onto the page, so annotations
    stay selectable and editable in other viewers.
-3. **Form-field filling** (`FEATURE_FORM_FIELDS`) - detect AcroForm fields and
+2. **Form-field filling** (`FEATURE_FORM_FIELDS`) - detect AcroForm fields and
    let users fill them (PDFium form APIs).
-4. **Find / text search** across the document.
-5. **Mobile / touch polish** - refine gestures and layout for small screens.
+3. **Multi-page extract / range export** - extend the current single-page
+   extract to a selectable page range.
+4. **Higher-fidelity .docx import** - tables, images and richer list nesting in
+   the in-browser converter.
+5. **Find / text search** across the document.
+6. **Mobile / touch polish** - refine gestures and layout for small screens.
 
 ## Later / hard / exploratory
 
@@ -62,3 +66,6 @@ in-progress items live in [.env.example](.env.example).
   PDF annotations once exported (until item 2 above lands).
 - Object "delete" removes content from the stream but is not security-grade redaction.
 - Everything is held in memory, so very large PDFs are limited by browser RAM.
+- `.docx` / `.rtf` import preserves content and basic structure (headings,
+  paragraphs, lists, bold/italic) but not exact layout; tables are flattened to
+  text and images are dropped. Legacy binary `.doc` is not supported.

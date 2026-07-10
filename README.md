@@ -29,9 +29,10 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 | Status | Feature |
 | ------ | ------- |
 | Available | Open and render any PDF locally (PDFium-WASM) - nothing is uploaded |
+| Available | Open Word documents (`.docx`, `.rtf`) - converted to an editable-text PDF in your browser |
 | Available | Password-protected PDFs - detected on open **and** merge, with a retry prompt |
 | Available | Merge / append other PDFs into the current document |
-| Available | Page management - reorder (drag), rotate, duplicate, delete, insert blank |
+| Available | Page management - reorder (drag), rotate, duplicate, delete, insert blank, extract a page as its own PDF |
 | Available | Thumbnail rail with active-page sync (scroll ↔ selection) and click-to-jump |
 | Available | Edit existing content - select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
 | Available | Multi-line text editing with a live, debounced Inspector panel |
