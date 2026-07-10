@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { appConfig } from "@/lib/config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = "https://folio.ziloris.com";
+const SITE_URL = appConfig.url;
 const TITLE = "Folio - Edit PDFs. No limits. Free.";
 const DESCRIPTION =
   "Folio is a free, no-limits PDF editor that runs entirely in your browser. Edit text, sign, add images and shapes, reorder pages, then export - no account, no watermark, nothing uploaded.";
