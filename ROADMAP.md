@@ -2,7 +2,8 @@
 
 Folio is under active development. This file tracks what works today, what is
 coming next, and what is intentionally out of scope. Feature flags for the
-in-progress items live in [.env.example](.env.example).
+in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
+(the site is fully static, so config is edited in code and redeployed).
 
 ## Available today
 
@@ -29,7 +30,7 @@ in-progress items live in [.env.example](.env.example).
 1. **Real PDF annotations on export** - emit proper text-markup / shape / link
    annotations instead of flattening everything onto the page, so annotations
    stay selectable and editable in other viewers.
-2. **Form-field filling** (`FEATURE_FORM_FIELDS`) - detect AcroForm fields and
+2. **Form-field filling** (`features.formFields`) - detect AcroForm fields and
    let users fill them (PDFium form APIs).
 3. **Multi-page extract / range export** - extend the current single-page
    extract to a selectable page range.
@@ -40,13 +41,13 @@ in-progress items live in [.env.example](.env.example).
 
 ## Later / hard / exploratory
 
-- **Encrypted export** (`FEATURE_ENCRYPT_EXPORT`) - set/remove a password on the
+- **Encrypted export** (`features.encryptExport`) - set/remove a password on the
   exported file. Hard: pdf-lib cannot encrypt on save, so this needs a different
   save path.
-- **Multi-line paragraph reflow** (`FEATURE_TEXT_REFLOW`) of existing text runs.
-- **True redaction** (`FEATURE_REDACTION`) - guaranteed content removal + burn.
-- **OCR** for scanned / image-only PDFs (`FEATURE_OCR`).
-- **Cryptographic digital signatures** (`FEATURE_DIGITAL_SIGNATURE`).
+- **Multi-line paragraph reflow** (`features.textReflow`) of existing text runs.
+- **True redaction** (`features.redaction`) - guaranteed content removal + burn.
+- **OCR** for scanned / image-only PDFs (`features.ocr`).
+- **Cryptographic digital signatures** (`features.digitalSignature`).
 - Bookmarks / outline editing, document metadata editing, multi-select and
   copy/paste of objects, accessibility tagging.
 

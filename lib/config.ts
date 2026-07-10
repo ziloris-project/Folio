@@ -1,50 +1,39 @@
 /**
  * Central app configuration and feature flags.
  *
- * Folio runs in the browser, so every value here comes from a `NEXT_PUBLIC_`
- * variable (see `.env.example`). Next.js inlines these at build time by
- * statically replacing each `process.env.NEXT_PUBLIC_*` reference, so they MUST
- * be written out literally below - a dynamic lookup like `process.env[name]`
- * would NOT be inlined and would read as undefined in the browser.
- *
- * Feature flags gate work that is incomplete or not yet supported. They default
- * to off, so a production build only exposes finished features unless a flag is
- * explicitly enabled in the environment.
+ * Folio ships as a fully static site (`output: "export"`) served from Cloudflare
+ * as plain static assets, so there is no build-time env to read from. Config
+ * therefore lives here as plain constants: to change a value, edit this file and
+ * redeploy. Feature flags gate work that is incomplete or not yet supported -
+ * flip one to `true` only once the feature is actually built.
  */
 
-/** Parse a flag value; treats "true"/"1" as on, everything else as off. */
-function bool(value: string | undefined, fallback = false): boolean {
-  if (value === undefined || value === "") return fallback;
-  return value === "true" || value === "1";
-}
-
 export const appConfig = {
-  name: process.env.NEXT_PUBLIC_APP_NAME || "Folio",
-  url: process.env.NEXT_PUBLIC_APP_URL || "https://folio.ziloris.com",
+  name: "Folio",
+  url: "https://folio.ziloris.com",
 } as const;
 
 export const features = {
   /** In-place editing of existing content objects + annotation tools. */
-  contentEdit: bool(process.env.NEXT_PUBLIC_FEATURE_CONTENT_EDIT, true),
+  contentEdit: true,
+  /** Split / extract a page into a separate PDF. */
+  pageExtract: true,
+  /** Import .docx / .rtf by converting to an editable PDF in-browser. */
+  docImport: true,
 
-  /** Split / extract a page into a separate PDF. Shipped; flag can hide it. */
-  pageExtract: bool(process.env.NEXT_PUBLIC_FEATURE_PAGE_EXTRACT, true),
-  /** Import .docx (and .rtf) by converting to an editable PDF in-browser. */
-  docImport: bool(process.env.NEXT_PUBLIC_FEATURE_DOC_IMPORT, true),
-
-  // ---- Not yet supported / experimental (default off) ----
+  // ---- Not yet supported / experimental (keep false until built) ----
   /** Multi-line paragraph reflow of existing text runs. */
-  textReflow: bool(process.env.NEXT_PUBLIC_FEATURE_TEXT_REFLOW),
+  textReflow: false,
   /** AcroForm form-field detection and filling. */
-  formFields: bool(process.env.NEXT_PUBLIC_FEATURE_FORM_FIELDS),
+  formFields: false,
   /** True redaction (content removal + burn). */
-  redaction: bool(process.env.NEXT_PUBLIC_FEATURE_REDACTION),
+  redaction: false,
   /** OCR for scanned / image-only PDFs. */
-  ocr: bool(process.env.NEXT_PUBLIC_FEATURE_OCR),
+  ocr: false,
   /** Set or remove a password (encryption) on export. */
-  encryptExport: bool(process.env.NEXT_PUBLIC_FEATURE_ENCRYPT_EXPORT),
+  encryptExport: false,
   /** Cryptographic digital signatures (vs. drawn image signatures). */
-  digitalSignature: bool(process.env.NEXT_PUBLIC_FEATURE_DIGITAL_SIGNATURE),
+  digitalSignature: false,
 } as const;
 
 /** Names of the available feature flags. */
