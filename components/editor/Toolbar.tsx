@@ -257,7 +257,7 @@ export function Toolbar() {
       )}
 
       {/* Hidden inputs + dialogs */}
-      <input ref={openRef} type="file" accept="application/pdf,.pdf" hidden
+      <input ref={openRef} type="file" accept="application/pdf,.pdf,.docx" hidden
         onChange={(e) => { const f = e.target.files?.[0]; if (f) { reset(); void useEditor.getState().loadFile(f); } }} />
       <input ref={mergeRef} type="file" accept="application/pdf,.pdf" hidden
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void mergeFile(f); e.target.value = ""; }} />

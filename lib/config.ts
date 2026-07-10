@@ -29,6 +29,8 @@ export const features = {
 
   /** Split / extract a page into a separate PDF. Shipped; flag can hide it. */
   pageExtract: bool(process.env.NEXT_PUBLIC_FEATURE_PAGE_EXTRACT, true),
+  /** Import .docx (and .rtf) by converting to an editable PDF in-browser. */
+  docImport: bool(process.env.NEXT_PUBLIC_FEATURE_DOC_IMPORT, true),
 
   // ---- Not yet supported / experimental (default off) ----
   /** Multi-line paragraph reflow of existing text runs. */

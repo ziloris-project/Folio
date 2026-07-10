@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
+import { features } from "./config";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
 import {
@@ -198,6 +199,19 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   loadFile: async (file) => {
     set({ status: "loading", error: null });
+    try {
+      // Word-processor documents are converted to an editable-text PDF in the
+      // browser first; plain PDFs pass straight through.
+      const { isConvertibleDoc, convertToPdf } = await import("./pdf/convert");
+      if (features.docImport && isConvertibleDoc(file.name)) {
+        const { bytes, name } = await convertToPdf(file);
+        await openInto(set, bytes, name, "");
+        return;
+      }
+    } catch (e) {
+      set({ status: "error", error: e instanceof Error ? e.message : "Failed to import document" });
+      return;
+    }
     const bytes = await readBytes(file);
     await openInto(set, bytes, file.name, "");
   },

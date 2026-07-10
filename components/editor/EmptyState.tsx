@@ -127,20 +127,20 @@ export function EmptyState() {
               <div className="space-y-1">
                 <p className="text-base font-medium">
                   {loading
-                    ? "Opening your PDF…"
+                    ? "Opening your document…"
                     : dragging
                       ? "Drop to open"
-                      : "Drop a PDF, or click to browse"}
+                      : "Drop a PDF or Word doc, or click to browse"}
                 </p>
                 <p className="text-xs text-muted">
-                  Any PDF · opens instantly · stays on your device
+                  PDF, DOCX · opens instantly · stays on your device
                 </p>
               </div>
 
               <input
                 ref={inputRef}
                 type="file"
-                accept="application/pdf,.pdf"
+                accept="application/pdf,.pdf,.docx"
                 hidden
                 onChange={(e) => pick(e.target.files)}
               />

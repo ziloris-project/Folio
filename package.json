@@ -23,6 +23,7 @@
     "@radix-ui/react-tooltip": "^1.2.10",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
+    "mammoth": "^1.12.0",
     "motion": "^12.42.0",
     "nanoid": "^5.1.15",
     "next": "16.2.9",
