@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { useEditor } from "@/lib/store";
 import type { ToolId } from "@/lib/pdf/types";
-import { downloadBlob } from "@/lib/utils";
 import { Tooltip } from "../ui/Tooltip";
 import { IconButton } from "../ui/IconButton";
 import { SignatureDialog } from "./SignatureDialog";
@@ -47,7 +46,6 @@ export function Toolbar() {
   const zoom = useEditor((s) => s.zoom);
   const setZoom = useEditor((s) => s.setZoom);
   const zoomBy = useEditor((s) => s.zoomBy);
-  const fileName = useEditor((s) => s.fileName);
   const reset = useEditor((s) => s.reset);
   const mergeFile = useEditor((s) => s.mergeFile);
   const undo = useEditor((s) => s.undo);
@@ -102,23 +100,9 @@ export function Toolbar() {
   async function onSave() {
     setSaving(true);
     try {
-      const { buildPdf } = await import("@/lib/pdf/save");
-      const { getPdfiumDoc } = await import("@/lib/pdf/pdfium/registry");
-      const { pages, sources } = useEditor.getState();
-      // Stage 1: bake existing-content edits via PDFium (these bytes also have
-      // intrinsic rotation normalized to 0). Stage 2: pdf-lib assembles page
-      // order/rotation and overlay annotations.
-      const sourceBytes: Record<string, Uint8Array> = {};
-      for (const id of Object.keys(sources)) {
-        const docP = getPdfiumDoc(id);
-        sourceBytes[id] = docP ? (await docP).save() : sources[id].bytes;
-      }
-      const bytes = await buildPdf({ pages, sourceBytes });
-      const ab = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(ab).set(bytes);
-      const name = fileName.replace(/\.pdf$/i, "") || "document";
-      downloadBlob(new Blob([ab], { type: "application/pdf" }), `${name}-edited.pdf`);
-      useEditor.getState().showToast(`Exported ${name}-edited.pdf`, "success");
+      const { exportPdf } = await import("@/lib/pdf/exportDocument");
+      const name = await exportPdf();
+      useEditor.getState().showToast(`Exported ${name}`, "success");
     } catch (e) {
       console.error(e);
       useEditor.getState().showToast(
