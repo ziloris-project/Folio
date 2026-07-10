@@ -17,7 +17,7 @@ export interface ConvertedDoc {
 }
 
 /** Extensions we can convert in-browser. */
-const CONVERTIBLE = /\.(docx)$/i;
+const CONVERTIBLE = /\.(docx|rtf)$/i;
 
 /** Whether `openDocument` can handle this file (vs. a plain PDF). */
 export function isConvertibleDoc(fileName: string): boolean {
@@ -30,6 +30,9 @@ export async function convertToPdf(file: File): Promise<ConvertedDoc> {
   if (ext === "docx") {
     const { docxToBlocks } = await import("./docx");
     blocks = await docxToBlocks(await file.arrayBuffer());
+  } else if (ext === "rtf") {
+    const { rtfToBlocks } = await import("./rtf");
+    blocks = rtfToBlocks(await file.text());
   } else {
     throw new Error("Unsupported document type.");
   }

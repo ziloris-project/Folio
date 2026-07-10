@@ -133,14 +133,14 @@ export function EmptyState() {
                       : "Drop a PDF or Word doc, or click to browse"}
                 </p>
                 <p className="text-xs text-muted">
-                  PDF, DOCX · opens instantly · stays on your device
+                  PDF, DOCX, RTF · opens instantly · stays on your device
                 </p>
               </div>
 
               <input
                 ref={inputRef}
                 type="file"
-                accept="application/pdf,.pdf,.docx"
+                accept="application/pdf,.pdf,.docx,.rtf"
                 hidden
                 onChange={(e) => pick(e.target.files)}
               />
