@@ -7,7 +7,12 @@ import { features } from "./config";
 import { validateDocumentFile, validatePdfFile } from "./files";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
+import { isFeatureEnabled } from "./config";
+import { spanOf } from "./pdf/text/geometry";
+import { calibratedMeasure, loadMetrics } from "./pdf/text/measure";
+import { paragraphAt, reflowParagraph, type Paragraph } from "./pdf/text/paragraphs";
 import {
+  appendLineLike,
   listPageObjects,
   setObjectText,
   setObjectFill,
@@ -111,7 +116,13 @@ interface EditorState {
   // ----- existing-content object ops -----
   refreshObjects: (pageId: string) => Promise<void>;
   selectObject: (sel: { pageId: string; index: number } | null) => void;
-  editObjectText: (pageId: string, index: number, text: string) => Promise<void>;
+  /** `reflow` re-wraps the surrounding paragraph; pass it on commit, not per keystroke. */
+  editObjectText: (
+    pageId: string,
+    index: number,
+    text: string,
+    opts?: { reflow?: boolean },
+  ) => Promise<void>;
   setObjectColor: (pageId: string, index: number, color: RGBA, which: "fill" | "stroke") => Promise<void>;
   setObjectStrokeWidthValue: (pageId: string, index: number, width: number) => Promise<void>;
   setObjectFontSizeValue: (pageId: string, index: number, current: number, next: number) => Promise<void>;
@@ -423,16 +434,28 @@ export const useEditor = create<EditorState>((set, get) => ({
   // word grouped out of per-glyph runs is one thing on screen but many objects
   // in the file, and colouring or moving only the first letter of it is the
   // whole class of bug this fans out to avoid.
-  editObjectText: async (pageId, index, text) => {
+  editObjectText: async (pageId, index, text, opts) => {
     const parts = partsOf(get, pageId, index);
+    // Reflow is deliberately not run on every keystroke, even though it could
+    // be. Pouring text through the paragraph as you type moves it between lines
+    // under the caret: type a word onto the end of line one and the tail of it
+    // lands on line two, so the field you are typing into loses text you just
+    // entered. Waiting for the edit to be committed means the line simply grows
+    // while you work and settles into the paragraph when you are done.
+    const plan = opts?.reflow ? await planReflow(get, pageId, index, text) : null;
+
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
-      setObjectText(doc, pageIndex, index, text);
-      // The word's remaining runs are now spelled out by the one just rewritten,
-      // so they have to stop drawing. Blank them rather than delete them:
-      // removing an object renumbers every index above it, which would slide the
-      // selection out from under the caret between two keystrokes. An empty run
-      // draws nothing and is dropped on the next enumeration.
-      for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
+      if (!plan) {
+        setObjectText(doc, pageIndex, index, text);
+        // The line's remaining runs are now spelled out by the one just
+        // rewritten, so they have to stop drawing. Blank them rather than delete
+        // them: removing an object renumbers every index above it, which would
+        // slide the selection out from under the caret between two keystrokes.
+        // An empty run draws nothing and is dropped on the next enumeration.
+        for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
+        return;
+      }
+      applyReflow(doc, pageIndex, plan);
     });
   },
 
@@ -648,6 +671,78 @@ function entryAt(get: () => EditorState, pageId: string, index: number): PageObj
  */
 function partsOf(get: () => EditorState, pageId: string, index: number): number[] {
   return entryAt(get, pageId, index)?.parts ?? [index];
+}
+
+interface ReflowPlan {
+  paragraph: Paragraph;
+  /** The paragraph's text after the edit, broken to fit its column. */
+  lines: string[];
+}
+
+/**
+ * Work out how the edited line's paragraph should be laid out, or null if there
+ * is nothing to reflow into.
+ *
+ * Measurement is calibrated against the edited line itself: we know its text
+ * and the width that text really occupies on the page, which corrects for the
+ * embedded font we have no metrics for. See pdf/text/measure.ts.
+ */
+async function planReflow(
+  get: () => EditorState,
+  pageId: string,
+  index: number,
+  text: string,
+): Promise<ReflowPlan | null> {
+  if (!isFeatureEnabled("textReflow")) return null;
+  const objects = get().pageObjects[pageId];
+  if (!objects) return null;
+  const paragraph = paragraphAt(objects, index);
+  if (!paragraph) return null;
+
+  const target = paragraph.lines[paragraph.target];
+  const fonts = await loadMetrics();
+  const measure = calibratedMeasure(fonts, {
+    fontName: target.fontName,
+    fontSize: target.fontSize,
+    sampleText: target.text,
+    sampleWidth: spanOf(target),
+  });
+  return { paragraph, lines: reflowParagraph(paragraph, text, measure) };
+}
+
+/**
+ * Write a reflowed paragraph back onto the page.
+ *
+ * Existing lines are rewritten in place, which keeps every index stable and so
+ * keeps the selection valid. A paragraph that grew gets new objects appended
+ * below the last line, stepping down by its own leading and in its own writing
+ * direction, so this works on rotated text too. A paragraph that shrank leaves
+ * its surplus lines blank, and they disappear on the next enumeration.
+ *
+ * What this does not do is push whatever sits below the paragraph out of the
+ * way. A block that grows can therefore overlap the one after it. Moving the
+ * rest of the page would mean re-laying out content this edit never touched,
+ * across tables, columns and the page boundary, which is a much larger change
+ * than reflowing one paragraph.
+ */
+function applyReflow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan) {
+  const { paragraph, lines } = plan;
+  paragraph.lines.forEach((line, i) => {
+    setObjectText(doc, pageIndex, line.index, lines[i] ?? "");
+    for (const p of line.parts) {
+      if (p !== line.index) setObjectText(doc, pageIndex, p, "");
+    }
+  });
+
+  const last = paragraph.lines[paragraph.lines.length - 1];
+  // "Down" one line in the text's own frame. The line normal is (-dy, dx), so
+  // stepping against it is (dy, -dx); for unrotated text that is plain -leading
+  // on y.
+  for (let i = paragraph.lines.length; i < lines.length; i++) {
+    const steps = i - (paragraph.lines.length - 1);
+    const drop = paragraph.leading * steps;
+    appendLineLike(doc, pageIndex, last.index, lines[i], drop * last.dir.y, -drop * last.dir.x);
+  }
 }
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */

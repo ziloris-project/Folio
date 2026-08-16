@@ -23,10 +23,11 @@ export const features = {
   /** Group per-glyph text objects into editable words, so selecting page text
    *  picks up a word rather than a letter (lib/pdf/pdfium/grouping.ts). */
   textGrouping: true,
+  /** Re-wrap the surrounding paragraph when an edited line changes length
+   *  (lib/pdf/text/). Applies on commit, not per keystroke. */
+  textReflow: true,
 
   // ---- Not yet supported / experimental (keep false until built) ----
-  /** Multi-line paragraph reflow of existing text runs. */
-  textReflow: false,
   /** AcroForm form-field detection and filling. */
   formFields: false,
   /** True redaction (content removal + burn). */
