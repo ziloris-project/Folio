@@ -243,6 +243,54 @@ export function deleteObject(doc: PdfiumDoc, pageIndex: number, objIndex: number
 }
 
 /**
+ * Append a text object copying another's font, size, colour and orientation,
+ * offset from that model's baseline by (dx, dy) in PDF points.
+ *
+ * Re-wrapping needs this when a paragraph grows a line. The new line has to be
+ * indistinguishable from the ones around it, so it reuses the model's own font
+ * handle rather than substituting a standard-14 face, which would change the
+ * paragraph's appearance halfway down as a side effect of editing it.
+ *
+ * The model's *nominal* size is passed to CreateTextObj and its matrix is then
+ * copied wholesale, so the scale the matrix carries is applied exactly once and
+ * the new line renders at the same visual size as its neighbours.
+ *
+ * Returns the new object's index, or -1 if the model has no font to borrow.
+ */
+export function appendLineLike(
+  doc: PdfiumDoc,
+  pageIndex: number,
+  modelIndex: number,
+  text: string,
+  dx: number,
+  dy: number,
+): number {
+  const I = doc.I;
+  const page = doc.pageHandle(pageIndex);
+  const model = I.FPDFPage_GetObject(page, modelIndex);
+  const font = I.FPDFTextObj_GetFont(model);
+  if (!font) return -1;
+
+  const nominal = withFloatOut(I, 1, (p) => I.FPDFTextObj_GetFontSize(model, p[0])).values[0];
+  const obj = I.FPDFPageObj_CreateTextObj(doc.handle, font, nominal);
+  if (!obj) return -1;
+
+  const w = writeWideString(I, text);
+  try {
+    I.FPDFText_SetText(obj, w);
+  } finally {
+    free(I, w);
+  }
+  const fill = readFill(I, model);
+  I.FPDFPageObj_SetFillColor(obj, fill.r, fill.g, fill.b, fill.a);
+
+  const [a, b, c, d, e, f] = getMatrix(I, model);
+  setMatrix(I, obj, [a, b, c, d, e + dx, f + dy]);
+  I.FPDFPage_InsertObject(page, obj);
+  return I.FPDFPage_CountObjects(page) - 1;
+}
+
+/**
  * Replace a text run with new text drawn in a standard-14 font at an exact
  * on-page size, preserving position, rotation and color. This is the reliable
  * path when the original (often subset) font can't render newly-typed glyphs,

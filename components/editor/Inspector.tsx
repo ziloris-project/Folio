@@ -147,8 +147,11 @@ export function Inspector() {
                     }
                   }}
                   onBlur={() => {
+                    // Committing is where the paragraph re-wraps. Doing it on
+                    // every keystroke would move text between lines under the
+                    // caret, so while typing the line just grows.
                     if (applyTimer.current) clearTimeout(applyTimer.current);
-                    if (text !== obj.text) void editObjectText(selectedObject.pageId, obj.index, text);
+                    void editObjectText(selectedObject.pageId, obj.index, text, { reflow: true });
                   }}
                   rows={3}
                   className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
