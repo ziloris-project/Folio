@@ -28,6 +28,7 @@
  * spacing is already explicit cannot be made worse.
  */
 import type { PageObject, PdfBBox, RGBA, TextObject } from "../types";
+import { baselineOf, extentOf, gapBetween } from "../text/geometry";
 
 export interface TextGroup {
   /** Member object indices, in reading order along the line. */
@@ -75,43 +76,6 @@ const LINE_EM = 0.4;
  * em-based bound lets it through.
  */
 const MAX_OVERLAP_FRACTION = 0.35;
-
-/** Where a point sits along a run's own writing direction. */
-function along(o: TextObject, x: number, y: number): number {
-  return x * o.dir.x + y * o.dir.y;
-}
-
-/**
- * Which baseline a run sits on: the signed distance from the page origin to
- * that baseline, measured along the line's normal. For unrotated text this is
- * simply the origin's y.
- */
-function baselineOf(o: TextObject): number {
-  return o.origin.y * o.dir.x - o.origin.x * o.dir.y;
-}
-
-/**
- * A run's extent along its own writing direction. Bounds come back axis-aligned
- * in user space, so a rotated run needs all four corners projected; for the
- * common unrotated case this reduces to { min: left, max: right }.
- */
-function extentOf(o: TextObject): { min: number; max: number } {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const x of [o.bbox.left, o.bbox.right]) {
-    for (const y of [o.bbox.bottom, o.bbox.top]) {
-      const t = along(o, x, y);
-      if (t < min) min = t;
-      if (t > max) max = t;
-    }
-  }
-  return { min, max };
-}
-
-/** Distance from the end of one run to the start of the next, along the line. */
-function gapBetween(prev: TextObject, next: TextObject): number {
-  return extentOf(next).min - extentOf(prev).max;
-}
 
 /**
  * Split a line into draw layers.
