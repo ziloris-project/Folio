@@ -43,13 +43,18 @@ const LINE_EM = 0.4;
 /** Allowed relative font-size difference to still count as the same run. */
 const SIZE_TOL = 0.15;
 /**
- * How far two neighbours may overlap and still count as kerning rather than one
- * drawn on top of the other. Tight pairs ("AV", "To") overlap by a few
- * hundredths of an em. Faux-bold and drop shadows redraw the same string on
- * itself with a hairline offset, overlapping by whole glyphs; without an upper
- * bound those merge and the word comes back doubled ("HHeelllloo").
+ * How much of the narrower neighbour may be overlapped before the pair reads as
+ * one run stamped on the other rather than kerned against it. Faux-bold and drop
+ * shadows redraw a string on itself a hairline apart, so each glyph is almost
+ * entirely covered; genuine kerning ("AV", "To") eats well under a fifth of a
+ * glyph. Without this the stamped copy merges and the word comes back doubled
+ * ("bboolldd").
+ *
+ * Measured against glyph width, not em: a lowercase glyph is only about half an
+ * em wide, so a full overlay of one is still a small fraction of an em and any
+ * em-based bound lets it through.
  */
-const MAX_OVERLAP_EM = 0.2;
+const MAX_OVERLAP_FRACTION = 0.35;
 
 function colorEq(a: RGBA, b: RGBA): boolean {
   return a.r === b.r && a.g === b.g && a.b === b.b && a.a === b.a;
@@ -85,6 +90,35 @@ function extentOf(o: TextObject): { min: number; max: number } {
     }
   }
   return { min, max };
+}
+
+/**
+ * Split a line into draw layers.
+ *
+ * Text stamped on top of other text (faux bold and drop shadows both redraw a
+ * string on itself a hairline apart) interleaves with the original once the line
+ * is in positional order, so grouping the line as one sequence produces a zigzag
+ * of half-words: "bold" drawn twice comes out as b / bo / ol / ld / d.
+ *
+ * Assign each run to the first layer whose last member it does not heavily
+ * overlap. Each layer is then a clean left-to-right sequence that groups on its
+ * own terms, and the stamped copy stays a separate word instead of being woven
+ * through the original. Text that does not overlap all lands in one layer, so
+ * for ordinary pages this does nothing.
+ */
+function splitLayers(line: TextObject[]): TextObject[][] {
+  const layers: TextObject[][] = [];
+  for (const o of line) {
+    const b = extentOf(o);
+    const layer = layers.find((runs) => {
+      const a = extentOf(runs[runs.length - 1]);
+      const narrower = Math.min(a.max - a.min, b.max - b.min);
+      return b.min - a.max > -MAX_OVERLAP_FRACTION * narrower;
+    });
+    if (layer) layer.push(o);
+    else layers.push([o]);
+  }
+  return layers;
 }
 
 /** Cluster runs into lines: same writing direction, same baseline. */
@@ -161,33 +195,36 @@ export function groupTextObjects(objects: PageObject[]): TextGroup[] {
   const groups: TextGroup[] = [];
   for (const line of clusterLines(texts)) {
     line.sort((a, b) => extentOf(a).min - extentOf(b).min); // reading order
-    let word: TextObject[] = [];
-    const flush = () => {
-      if (word.length) groups.push(makeGroup(word));
-      word = [];
-    };
-    for (const t of line) {
-      const prev = word[word.length - 1];
-      if (prev) {
-        const em = Math.max(prev.fontSize, 1);
-        const gap = extentOf(t).min - extentOf(prev).max;
-        const sameStyle =
-          prev.fontName === t.fontName &&
-          Math.abs(prev.fontSize - t.fontSize) <=
-            SIZE_TOL * Math.max(prev.fontSize, t.fontSize, 1) &&
-          colorEq(prev.color, t.color);
-        // Gap has to be small in both directions: too wide is a word break, too
-        // negative is one run stamped over another rather than kerned into it.
-        const adjacent = gap < SPACE_EM * em && gap > -MAX_OVERLAP_EM * em;
-        // A space the PDF already spelled out is the word break, whatever the
-        // geometry says. Grouping only ever merges runs, so it must not paper
-        // over a boundary the file was explicit about.
-        const spelled = /\s$/.test(prev.text) || /^\s/.test(t.text);
-        if (!sameStyle || !adjacent || spelled) flush();
+    for (const layer of splitLayers(line)) {
+      let word: TextObject[] = [];
+      const flush = () => {
+        if (word.length) groups.push(makeGroup(word));
+        word = [];
+      };
+      for (const t of layer) {
+        const prev = word[word.length - 1];
+        if (prev) {
+          const em = Math.max(prev.fontSize, 1);
+          const gap = extentOf(t).min - extentOf(prev).max;
+          const sameStyle =
+            prev.fontName === t.fontName &&
+            Math.abs(prev.fontSize - t.fontSize) <=
+              SIZE_TOL * Math.max(prev.fontSize, t.fontSize, 1) &&
+            colorEq(prev.color, t.color);
+          // Only the upper bound is left to check: a gap this wide is a word
+          // break. Heavy overlap was already handled by splitting into layers,
+          // so what remains below zero here is ordinary kerning.
+          const adjacent = gap < SPACE_EM * em;
+          // A space the PDF already spelled out is the word break, whatever the
+          // geometry says. Grouping only ever merges runs, so it must not paper
+          // over a boundary the file was explicit about.
+          const spelled = /\s$/.test(prev.text) || /^\s/.test(t.text);
+          if (!sameStyle || !adjacent || spelled) flush();
+        }
+        word.push(t);
       }
-      word.push(t);
+      flush();
     }
-    flush();
   }
   return groups;
 }
