@@ -186,14 +186,33 @@ export function setObjectStrokeWidth(doc: PdfiumDoc, pageIndex: number, objIndex
   doc.I.FPDFPageObj_SetStrokeWidth(obj(doc, pageIndex, objIndex), w);
 }
 
-/** Scale a text object's glyph size about its origin (no direct size setter). */
-export function setObjectFontSize(doc: PdfiumDoc, pageIndex: number, objIndex: number, current: number, next: number) {
+/**
+ * Scale a text object's glyph size (there is no direct size setter, so this
+ * scales the matrix).
+ *
+ * Without `anchor` the run grows about its own origin, which is what a
+ * standalone run wants. A word reassembled from per-glyph runs must pass the
+ * word's start instead: each glyph carries its own origin, so scaling them
+ * independently grows the letters without moving them apart, and the word
+ * collapses into itself. Scaling the translation about a shared point moves
+ * them in step and the spacing survives.
+ */
+export function setObjectFontSize(
+  doc: PdfiumDoc,
+  pageIndex: number,
+  objIndex: number,
+  current: number,
+  next: number,
+  anchor?: { x: number; y: number },
+) {
   if (current <= 0) return;
   const I = doc.I;
   const o = obj(doc, pageIndex, objIndex);
   const k = next / current;
   const [a, b, c, d, e, f] = getMatrix(I, o);
-  setMatrix(I, o, [a * k, b * k, c * k, d * k, e, f]); // keep translation anchored
+  const ex = anchor ? anchor.x + (e - anchor.x) * k : e;
+  const fy = anchor ? anchor.y + (f - anchor.y) * k : f;
+  setMatrix(I, o, [a * k, b * k, c * k, d * k, ex, fy]);
 }
 
 /** Translate an object by (dx, dy) in PDF points (bottom-left origin). */
