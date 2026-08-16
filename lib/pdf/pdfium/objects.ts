@@ -122,13 +122,13 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
     const bbox = readBounds(I, obj);
     if (type === OBJ_TEXT) {
       const m = getMatrix(I, obj);
-      out.push({ index: i, type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
+      out.push({ index: i, parts: [i], type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
     } else if (type === OBJ_PATH) {
-      out.push({ index: i, type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
+      out.push({ index: i, parts: [i], type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
     } else if (type === OBJ_IMAGE) {
-      out.push({ index: i, type: "image", bbox });
+      out.push({ index: i, parts: [i], type: "image", bbox });
     } else {
-      out.push({ index: i, type: "other", bbox });
+      out.push({ index: i, parts: [i], type: "other", bbox });
     }
   }
   return out;

@@ -145,6 +145,13 @@ interface PageObjectBase {
   index: number;
   type: PageObjectType;
   bbox: PdfBBox;
+  /**
+   * Every PDFium object index this entry stands for, in reading order, with
+   * `index` first. Almost always just `[index]`; a word reconstructed from
+   * per-glyph runs (see pdfium/grouping.ts) lists all of them, so an edit can
+   * fan out across the whole word instead of hitting one letter.
+   */
+  parts: number[];
 }
 
 export interface TextObject extends PageObjectBase {
