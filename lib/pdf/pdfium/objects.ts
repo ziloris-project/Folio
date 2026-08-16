@@ -61,10 +61,26 @@ function readStrokeWidth(I: Pdfium, obj: number): number {
  * Effective size = nominal * vertical scale of the matrix (length of the image
  * of the text-space y-axis = hypot(c, d)).
  */
-function readFontSize(I: Pdfium, obj: number): number {
+function readFontSize(I: Pdfium, obj: number, m: Matrix): number {
   const nominal = withFloatOut(I, 1, (p) => I.FPDFTextObj_GetFontSize(obj, p[0])).values[0];
-  const [, , c, d] = getMatrix(I, obj);
-  return nominal * Math.hypot(c, d);
+  return nominal * Math.hypot(m[2], m[3]);
+}
+
+/**
+ * A run's baseline anchor and writing direction, both read off the text matrix.
+ *
+ * (e, f) is the text-space origin: the exact point the baseline starts from.
+ * That is a far better key for "which line is this on" than the ink bounding
+ * box, whose bottom edge dips by ~0.2em under any descender, so a "g" and the
+ * "o" beside it disagree about their own line by a fifth of an em.
+ *
+ * (a, b) normalized is the writing direction, which keeps a rotated caption or
+ * watermark from being read as part of the body text it happens to cross.
+ */
+function readOriginDir(m: Matrix) {
+  const [a, b, , , e, f] = m;
+  const len = Math.hypot(a, b) || 1;
+  return { origin: { x: e, y: f }, dir: { x: a / len, y: b / len } };
 }
 
 function readFontName(I: Pdfium, obj: number): string {
@@ -105,7 +121,8 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
     const type = I.FPDFPageObj_GetType(obj);
     const bbox = readBounds(I, obj);
     if (type === OBJ_TEXT) {
-      out.push({ index: i, type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj), color: readFill(I, obj), fontName: readFontName(I, obj) });
+      const m = getMatrix(I, obj);
+      out.push({ index: i, type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
     } else if (type === OBJ_PATH) {
       out.push({ index: i, type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
     } else if (type === OBJ_IMAGE) {
@@ -122,7 +139,9 @@ const obj = (doc: PdfiumDoc, pageIndex: number, objIndex: number) =>
 
 // --- Matrix helpers (FS_MATRIX = 6 floats a,b,c,d,e,f) --------------------
 
-function getMatrix(I: Pdfium, o: number): [number, number, number, number, number, number] {
+type Matrix = [number, number, number, number, number, number];
+
+function getMatrix(I: Pdfium, o: number): Matrix {
   const ptr = malloc(I, 24);
   try {
     I.FPDFPageObj_GetMatrix(o, ptr);
@@ -132,7 +151,7 @@ function getMatrix(I: Pdfium, o: number): [number, number, number, number, numbe
   }
 }
 
-function setMatrix(I: Pdfium, o: number, m: [number, number, number, number, number, number]) {
+function setMatrix(I: Pdfium, o: number, m: Matrix) {
   const ptr = malloc(I, 24);
   try {
     m.forEach((v, i) => setFloat(I, ptr + i * 4, v));
