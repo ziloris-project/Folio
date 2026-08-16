@@ -13,6 +13,10 @@
  * Well-formed PDFs are unaffected: their inter-word gaps already exceed the
  * threshold, so each word stays its own group. A tiny model could later refine
  * ambiguous spacing - see the tracking issue - but is not needed here.
+ *
+ * Grouping only ever merges. It never splits a run the file already spelled
+ * out, so a text object that arrives holding "hello world" stays one entry with
+ * that exact text: nothing here can turn a PDF's own spacing into a worse guess.
  */
 import type { PageObject, PdfBBox, RGBA, TextObject } from "../types";
 
@@ -162,7 +166,11 @@ export function groupTextObjects(objects: PageObject[]): TextGroup[] {
         // Gap has to be small in both directions: too wide is a word break, too
         // negative is one run stamped over another rather than kerned into it.
         const adjacent = gap < SPACE_EM * em && gap > -MAX_OVERLAP_EM * em;
-        if (!sameStyle || !adjacent) flush();
+        // A space the PDF already spelled out is the word break, whatever the
+        // geometry says. Grouping only ever merges runs, so it must not paper
+        // over a boundary the file was explicit about.
+        const spelled = /\s$/.test(prev.text) || /^\s/.test(t.text);
+        if (!sameStyle || !adjacent || spelled) flush();
       }
       word.push(t);
     }
