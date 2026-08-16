@@ -17,8 +17,8 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 - Thumbnail rail with active-page sync and click-to-jump
 - Edit existing content objects in place: move, retype, recolor (fill/stroke),
   stroke width, font size, delete
-- Group per-glyph text runs into words, so clicking page text selects the whole
-  word instead of one letter, and every edit applies across it
+- Rebuild per-glyph text runs into lines, so clicking page text selects the
+  whole line instead of one letter, and every edit applies across it
 - Recreate existing text runs in a standard-14 font (honors explicit line breaks)
 - Annotations: text (bold), ink, highlight, rectangle, ellipse, line, arrow,
   image, and draw-to-sign signatures; eraser and Delete/Backspace
@@ -65,11 +65,14 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 
 - Existing-text edits render reliably only through the 9 standard-14 fonts;
   custom / embedded / non-Latin glyph coverage is limited.
-- Word grouping is geometric, so it inherits the ambiguity the PDF format
-  leaves open: a file with broken or missing glyph spacing metrics can still be
-  split or joined in the wrong place. Grouping only ever merges runs, never
-  splits one, so a file whose spacing is already correct cannot be made worse.
-  Refining the ambiguous cases is tracked in issue #1.
+- Line grouping is geometric, so it inherits the ambiguity the PDF format
+  leaves open. A PDF stores no space character between runs it positioned
+  rather than spaced, so the gap is the only evidence, and a file with broken
+  glyph spacing metrics can have a space invented where none belongs or omitted
+  where one does. Run text itself is always preserved verbatim, so only the
+  separators between runs are ever at stake. Refining that call is issue #1.
+- Retyping a line that mixes styles adopts the style the line opens with, since
+  the whole line is rewritten through its first run.
 - Exported annotations are flattened onto the page - they are not re-editable
   PDF annotations once exported (until item 2 above lands).
 - Object "delete" removes content from the stream but is not security-grade redaction.
