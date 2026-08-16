@@ -22,6 +22,8 @@ import {
   type Pdfium,
 } from "./runtime";
 import type { PageObject, RGBA } from "../types";
+import { isFeatureEnabled } from "../../config";
+import { applyTextGrouping } from "./grouping";
 
 const OBJ_TEXT = 1;
 const OBJ_PATH = 2;
@@ -109,7 +111,13 @@ function readText(I: Pdfium, obj: number, textPage: number): string {
   }
 }
 
-/** Enumerate every object on a page with its editable properties. */
+/**
+ * Enumerate every object on a page with its editable properties.
+ *
+ * With the textGrouping feature on, per-glyph text runs are reassembled into
+ * whole words before the list is returned, so callers select and edit a word
+ * rather than a letter. Indices stay true PDFium indices either way.
+ */
 export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[] {
   const I = doc.I;
   const page = doc.pageHandle(pageIndex);
@@ -121,8 +129,14 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
     const type = I.FPDFPageObj_GetType(obj);
     const bbox = readBounds(I, obj);
     if (type === OBJ_TEXT) {
+      const text = readText(I, obj, textPage);
+      // An empty run draws nothing and offers nothing to select or edit, so it
+      // has no place in the list. That is also what lets editing a grouped word
+      // blank its spare runs instead of deleting them, which would renumber
+      // every index above and move the selection mid-keystroke.
+      if (!text) continue;
       const m = getMatrix(I, obj);
-      out.push({ index: i, parts: [i], type: "text", bbox, text: readText(I, obj, textPage), fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
+      out.push({ index: i, parts: [i], type: "text", bbox, text, fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
     } else if (type === OBJ_PATH) {
       out.push({ index: i, parts: [i], type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
     } else if (type === OBJ_IMAGE) {
@@ -131,7 +145,7 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
       out.push({ index: i, parts: [i], type: "other", bbox });
     }
   }
-  return out;
+  return isFeatureEnabled("textGrouping") ? applyTextGrouping(out) : out;
 }
 
 const obj = (doc: PdfiumDoc, pageIndex: number, objIndex: number) =>

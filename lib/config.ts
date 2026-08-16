@@ -20,11 +20,11 @@ export const features = {
   pageExtract: true,
   /** Import .docx / .rtf by converting to an editable PDF in-browser. */
   docImport: true,
+  /** Group per-glyph text objects into editable words, so selecting page text
+   *  picks up a word rather than a letter (lib/pdf/pdfium/grouping.ts). */
+  textGrouping: true,
 
   // ---- Not yet supported / experimental (keep false until built) ----
-  /** Group per-glyph text objects into editable words. Algorithm landed
-   *  (lib/pdf/pdfium/grouping.ts); UI wiring + edit path pending verification. */
-  textGrouping: false,
   /** Multi-line paragraph reflow of existing text runs. */
   textReflow: false,
   /** AcroForm form-field detection and filling. */
