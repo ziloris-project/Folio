@@ -34,6 +34,14 @@ const SPACE_EM = 0.28;
 const LINE_EM = 0.4;
 /** Allowed relative font-size difference to still count as the same run. */
 const SIZE_TOL = 0.15;
+/**
+ * How far two neighbours may overlap and still count as kerning rather than one
+ * drawn on top of the other. Tight pairs ("AV", "To") overlap by a few
+ * hundredths of an em. Faux-bold and drop shadows redraw the same string on
+ * itself with a hairline offset, overlapping by whole glyphs; without an upper
+ * bound those merge and the word comes back doubled ("HHeelllloo").
+ */
+const MAX_OVERLAP_EM = 0.2;
 
 function colorEq(a: RGBA, b: RGBA): boolean {
   return a.r === b.r && a.g === b.g && a.b === b.b && a.a === b.a;
@@ -144,14 +152,17 @@ export function groupTextObjects(objects: PageObject[]): TextGroup[] {
     for (const t of line) {
       const prev = word[word.length - 1];
       if (prev) {
+        const em = Math.max(prev.fontSize, 1);
         const gap = extentOf(t).min - extentOf(prev).max;
-        const space = SPACE_EM * Math.max(prev.fontSize, 1);
         const sameStyle =
           prev.fontName === t.fontName &&
           Math.abs(prev.fontSize - t.fontSize) <=
             SIZE_TOL * Math.max(prev.fontSize, t.fontSize, 1) &&
           colorEq(prev.color, t.color);
-        if (!sameStyle || gap >= space) flush();
+        // Gap has to be small in both directions: too wide is a word break, too
+        // negative is one run stamped over another rather than kerned into it.
+        const adjacent = gap < SPACE_EM * em && gap > -MAX_OVERLAP_EM * em;
+        if (!sameStyle || !adjacent) flush();
       }
       word.push(t);
     }
