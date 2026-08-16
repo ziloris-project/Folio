@@ -19,6 +19,8 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
   stroke width, font size, delete
 - Rebuild per-glyph text runs into lines, so clicking page text selects the
   whole line instead of one letter, and every edit applies across it
+- Re-wrap the surrounding paragraph when an edited line changes length, so text
+  flows between lines instead of running off the page (applied on commit)
 - Recreate existing text runs in a standard-14 font (honors explicit line breaks)
 - Annotations: text (bold), ink, highlight, rectangle, ellipse, line, arrow,
   image, and draw-to-sign signatures; eraser and Delete/Backspace
@@ -46,7 +48,6 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 - **Encrypted export** (`features.encryptExport`) - set/remove a password on the
   exported file. Hard: pdf-lib cannot encrypt on save, so this needs a different
   save path.
-- **Multi-line paragraph reflow** (`features.textReflow`) of existing text runs.
 - **True redaction** (`features.redaction`) - guaranteed content removal + burn.
 - **OCR** for scanned / image-only PDFs (`features.ocr`).
 - **Cryptographic digital signatures** (`features.digitalSignature`).
@@ -73,6 +74,13 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
   separators between runs are ever at stake. Refining that call is issue #1.
 - Retyping a line that mixes styles adopts the style the line opens with, since
   the whole line is rewritten through its first run.
+- Re-wrap reflows the edited paragraph only. Content below it is not pushed
+  down, so a paragraph that grows a line can overlap what follows.
+- Re-wrap needs a paragraph to measure a column from, so a line standing on its
+  own is never re-wrapped: nothing on the page says how wide it may become.
+- A hyphen at a line break survives re-wrapping. Telling a split word
+  ("environ-" / "ment") from a real compound ("part-" / "time") needs a
+  dictionary, so the hyphen is left visible rather than guessed away.
 - Exported annotations are flattened onto the page - they are not re-editable
   PDF annotations once exported (until item 2 above lands).
 - Object "delete" removes content from the stream but is not security-grade redaction.

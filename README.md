@@ -36,6 +36,7 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 | Available | Thumbnail rail with active-page sync (scroll ↔ selection) and click-to-jump |
 | Available | Edit existing content - select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
 | Available | Line-level text selection - PDFs that store text one glyph at a time are rebuilt into lines, so a click selects the whole line, not a letter |
+| Available | Paragraph re-wrap - lengthen or shorten a line and the surrounding paragraph reflows instead of overrunning |
 | Available | Multi-line text editing with a live, debounced Inspector panel |
 | Available | Annotate - text, freehand ink, highlight, rectangle, ellipse, line and arrow |
 | Available | Insert images and draw-to-sign signatures, placed by clicking on the page |
