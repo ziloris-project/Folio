@@ -21,7 +21,7 @@
 import type { PageObject, PdfBBox, RGBA, TextObject } from "../types";
 
 export interface TextGroup {
-  /** Member object indices (in page-object order), left-to-right. */
+  /** Member object indices, in reading order along the line. */
   indices: number[];
   /** Reconstructed word text. */
   text: string;
@@ -30,6 +30,10 @@ export interface TextGroup {
   fontSize: number;
   fontName: string;
   color: RGBA;
+  /** Baseline start of the word, i.e. the origin of its first run. */
+  origin: { x: number; y: number };
+  /** Writing direction shared by every run in the word. */
+  dir: { x: number; y: number };
 }
 
 /** Fraction of the font size treated as a within-word gap (a space is wider). */
@@ -120,19 +124,28 @@ function clusterLines(texts: TextObject[]): TextObject[][] {
 
 function makeGroup(word: TextObject[]): TextGroup {
   const first = word[0];
-  const bbox: PdfBBox = {
-    left: Math.min(...word.map((o) => o.bbox.left)),
-    right: Math.max(...word.map((o) => o.bbox.right)),
-    bottom: Math.min(...word.map((o) => o.bbox.bottom)),
-    top: Math.max(...word.map((o) => o.bbox.top)),
-  };
+  // Accumulate rather than spreading into Math.min/max: a run of glyphs is
+  // short, but this is the same argument-list hazard the ink bounding box hit.
+  const bbox: PdfBBox = { ...first.bbox };
+  let fontSize = first.fontSize;
+  for (const o of word) {
+    if (o.bbox.left < bbox.left) bbox.left = o.bbox.left;
+    if (o.bbox.right > bbox.right) bbox.right = o.bbox.right;
+    if (o.bbox.bottom < bbox.bottom) bbox.bottom = o.bbox.bottom;
+    if (o.bbox.top > bbox.top) bbox.top = o.bbox.top;
+    if (o.fontSize > fontSize) fontSize = o.fontSize;
+  }
   return {
     indices: word.map((o) => o.index),
     text: word.map((o) => o.text).join(""),
     bbox,
-    fontSize: Math.max(...word.map((o) => o.fontSize)),
+    fontSize,
     fontName: first.fontName,
     color: first.color,
+    // The word starts where its first run starts, which is what anything
+    // rebuilding or rescaling the word has to anchor on.
+    origin: first.origin,
+    dir: first.dir,
   };
 }
 
@@ -177,4 +190,37 @@ export function groupTextObjects(objects: PageObject[]): TextGroup[] {
     flush();
   }
   return groups;
+}
+
+/**
+ * Rewrite a page's object list so each text entry is the whole word rather than
+ * one glyph run of it. Non-text objects pass through untouched.
+ *
+ * A word takes the index of its first run and names all of them in `parts`, so
+ * it stays a valid PDFium index for operations that need one while every edit
+ * still knows the full set to apply itself to. Anchoring on the first run
+ * matters beyond convention: it is the one whose matrix places the word, so
+ * font replacement and rescaling rebuild from the right point.
+ */
+export function applyTextGrouping(objects: PageObject[]): PageObject[] {
+  const groups = groupTextObjects(objects);
+  if (!groups.length) return objects;
+
+  const merged: PageObject[] = objects.filter((o) => o.type !== "text");
+  for (const g of groups) {
+    merged.push({
+      type: "text",
+      index: g.indices[0],
+      parts: g.indices,
+      bbox: g.bbox,
+      text: g.text,
+      fontSize: g.fontSize,
+      fontName: g.fontName,
+      color: g.color,
+      origin: g.origin,
+      dir: g.dir,
+    });
+  }
+  // Back into page order, so the list still reads as z-order like the raw one.
+  return merged.sort((a, b) => a.index - b.index);
 }
