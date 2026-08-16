@@ -418,43 +418,67 @@ export const useEditor = create<EditorState>((set, get) => ({
   // All mutators follow the same shape: resolve the source doc, mutate, rewrite
   // the content stream, bump editVersion (to re-render the canvas), and refresh
   // the cached object list (bounds/props change after edits).
+  //
+  // Each one applies to every part of the selected entry, not just its index. A
+  // word grouped out of per-glyph runs is one thing on screen but many objects
+  // in the file, and colouring or moving only the first letter of it is the
+  // whole class of bug this fans out to avoid.
   editObjectText: async (pageId, index, text) => {
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      setObjectText(doc, pageIndex, index, text),
-    );
+    const parts = partsOf(get, pageId, index);
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      setObjectText(doc, pageIndex, index, text);
+      // The word's remaining runs are now spelled out by the one just rewritten,
+      // so they have to stop drawing. Blank them rather than delete them:
+      // removing an object renumbers every index above it, which would slide the
+      // selection out from under the caret between two keystrokes. An empty run
+      // draws nothing and is dropped on the next enumeration.
+      for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
+    });
   },
 
   setObjectColor: async (pageId, index, color, which) => {
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      which === "fill"
-        ? setObjectFill(doc, pageIndex, index, color)
-        : setObjectStrokeColor(doc, pageIndex, index, color),
-    );
+    const parts = partsOf(get, pageId, index);
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      for (const p of parts) {
+        if (which === "fill") setObjectFill(doc, pageIndex, p, color);
+        else setObjectStrokeColor(doc, pageIndex, p, color);
+      }
+    });
   },
 
   setObjectStrokeWidthValue: async (pageId, index, width) => {
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      setObjectStrokeWidth(doc, pageIndex, index, width),
-    );
+    const parts = partsOf(get, pageId, index);
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      for (const p of parts) setObjectStrokeWidth(doc, pageIndex, p, width);
+    });
   },
 
   setObjectFontSizeValue: async (pageId, index, current, next) => {
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      setObjectFontSize(doc, pageIndex, index, current, next),
-    );
+    const entry = entryAt(get, pageId, index);
+    const parts = entry?.parts ?? [index];
+    // Scale every run about the word's own baseline start. Left to scale around
+    // its own origin, each glyph would grow in place and the word would collapse
+    // into overlapping letters; a shared anchor moves them apart in step.
+    const anchor = entry?.type === "text" ? entry.origin : undefined;
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      for (const p of parts) setObjectFontSize(doc, pageIndex, p, current, next, anchor);
+    });
   },
 
   moveObjectBy: async (pageId, index, dxOverlay, dyOverlay) => {
+    const parts = partsOf(get, pageId, index);
     // Overlay space is top-left origin; PDF is bottom-left, so flip dy.
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      moveObject(doc, pageIndex, index, dxOverlay, -dyOverlay),
-    );
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      for (const p of parts) moveObject(doc, pageIndex, p, dxOverlay, -dyOverlay);
+    });
   },
 
   deleteObject: async (pageId, index) => {
-    await mutateObject(get, set, pageId, (doc, pageIndex) =>
-      deletePdfObject(doc, pageIndex, index),
-    );
+    // Descending, because removing an object renumbers every index above it.
+    const parts = [...partsOf(get, pageId, index)].sort((a, b) => b - a);
+    await mutateObject(get, set, pageId, (doc, pageIndex) => {
+      for (const p of parts) deletePdfObject(doc, pageIndex, p);
+    });
     set({ selectedObject: null });
   },
 
@@ -471,6 +495,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!docP) return;
     const doc = await docP;
     get().beginHistory();
+    // recreateTextObject rebuilds the entire string from the anchor run, so a
+    // grouped word's other runs would draw their glyphs a second time
+    // underneath. Blank them first (not delete, which would move the anchor
+    // index out from under the call below).
+    for (const p of target.parts) {
+      if (p !== index) setObjectText(doc, page.sourcePageIndex, p, "");
+    }
     const newIndex = recreateTextObject(doc, page.sourcePageIndex, index, {
       fontName,
       text: target.text,
@@ -600,6 +631,23 @@ async function mergeInto(
       get().showToast("Couldn't merge PDF: " + (e instanceof Error ? e.message : "unknown error"), "error");
     }
   }
+}
+
+/** The cached page-object entry a selection index refers to, if still listed. */
+function entryAt(get: () => EditorState, pageId: string, index: number): PageObject | undefined {
+  return get().pageObjects[pageId]?.find((o) => o.index === index);
+}
+
+/**
+ * Every PDFium object index an entry stands for. One entry is usually one
+ * object, but a word reconstructed from per-glyph runs covers all of them, and
+ * an edit that reaches only `index` would touch a single letter of it.
+ *
+ * Falls back to the index alone if the cache has been cleared (undo drops it),
+ * which is the same single-object behaviour as before grouping existed.
+ */
+function partsOf(get: () => EditorState, pageId: string, index: number): number[] {
+  return entryAt(get, pageId, index)?.parts ?? [index];
 }
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
