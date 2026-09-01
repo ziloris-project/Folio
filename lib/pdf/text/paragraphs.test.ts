@@ -116,6 +116,23 @@ describe("reflowParagraph", () => {
     expect(reflowParagraph(p, "hello", mono)).toEqual(["hello world"]);
   });
 
+  it("leaves the lines above the edit exactly where they were", () => {
+    // Editing the third line of a paragraph must not re-break the first two.
+    // Text the user did not touch moving under them reads as the document
+    // rearranging itself for no visible reason.
+    const objs = block(["aaa bbb", "ccc ddd", "eee fff"], { w: 7 });
+    const p = paragraphAt(objs, 2)!;
+    expect(p.target).toBe(2);
+    // Only the tail comes back, so lines 0 and 1 are never rewritten.
+    expect(reflowParagraph(p, "eee fff ggg", mono)).toEqual(["eee fff", "ggg"]);
+  });
+
+  it("reflows only from the edited line down when it shrinks", () => {
+    const objs = block(["aaa bbb", "ccc ddd", "eee fff"], { w: 7 });
+    const p = paragraphAt(objs, 1)!;
+    expect(reflowParagraph(p, "c", mono)).toEqual(["c eee", "fff"]);
+  });
+
   it("leaves a hyphen at a break alone", () => {
     // "part-" / "time" is a real compound and "environ-" / "ment" is a split
     // word, and nothing here can tell them apart. Joining wrongly corrupts the

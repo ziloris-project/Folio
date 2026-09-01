@@ -116,11 +116,18 @@ export function paragraphAt(objects: PageObject[], index: number): Paragraph | n
 }
 
 /**
- * The paragraph's text after replacing one of its lines, re-wrapped to fit.
+ * Re-wrap the edited line and everything below it, returning the lines that
+ * replace `paragraph.lines` from `paragraph.target` onwards.
  *
- * Lines are joined with a space because a line break inside a paragraph is
- * where the text was wrapped, not something the author wrote, and it has to
- * come out before the text can be laid out again.
+ * Only the tail is reflowed, and that is the difference between an edit that
+ * feels local and one that feels like the document moved. Text above the edit
+ * did not change, so re-breaking it would shuffle lines the user was not
+ * touching, for no reason they could see. Editing the third line of a paragraph
+ * leaves the first two exactly where they were.
+ *
+ * Within the tail, lines are joined with a space because a break inside a
+ * paragraph is where the text was wrapped, not something the author typed, and
+ * it has to come out before the text can be laid out again.
  *
  * A hyphen at a line break is left as-is. It is impossible to tell a word split
  * across lines ("environ-" / "ment") from a genuine compound ("part-" / "time")
@@ -132,8 +139,9 @@ export function reflowParagraph(
   replacement: string,
   measure: Measure,
 ): string[] {
-  const text = paragraph.lines
-    .map((line, i) => (i === paragraph.target ? replacement : line.text))
+  const tail = paragraph.lines.slice(paragraph.target);
+  const text = tail
+    .map((line, i) => (i === 0 ? replacement : line.text))
     .map((t) => t.replace(/\s+$/, ""))
     .join(" ");
   return wrapText(text, paragraph.columnWidth, measure);
