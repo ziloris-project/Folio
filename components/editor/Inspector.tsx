@@ -84,11 +84,24 @@ export function Inspector() {
   // a line focuses this field, so moving from one line to the next fires a blur
   // with no edit behind it; committing that would rewrite (and re-wrap) a
   // paragraph nobody touched. Only a real keystroke puts something here.
-  const pending = useRef<{ key: string; value: string } | null>(null);
+  const pending = useRef<string | null>(null);
   if (prevKey !== objKey) {
     setPrevKey(objKey);
     setText(obj?.type === "text" ? obj.text : "");
   }
+
+  // Re-seed the buffer when the object's own text changes underneath it, which
+  // happens when a re-wrap redistributes the paragraph and the selected line
+  // ends up holding less than was typed into it. Guarded twice: an uncommitted
+  // edit or a focused field means the user is mid-thought, and replacing what
+  // they are typing with what is currently on the page would eat keystrokes.
+  const objText = obj?.type === "text" ? obj.text : "";
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (pending.current !== null) return;
+    if (ta && document.activeElement === ta) return;
+    setText(objText);
+  }, [objText]);
 
   // Smart edit: selecting a text object drops the caret straight into its editor,
   // so clicking page text lands you in the text field without a second click
@@ -96,13 +109,17 @@ export function Inspector() {
   const isText = obj?.type === "text";
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    // Drop any uncommitted edit belonging to the previous selection. This runs
-    // after blur has already had its chance to commit, so a real edit is never
-    // lost here - only one left over from an object that is no longer shown.
-    pending.current = null;
-    if (!isText) return;
     const ta = textareaRef.current;
-    if (!ta) return;
+    // A selection that changes while this field still has focus is the store
+    // renumbering objects under an edit in progress (collapsing a line's runs
+    // removes objects, which shifts every index above them). That is the same
+    // line, not a new one: keep the uncommitted edit and leave the caret where
+    // the user put it, or typing would jump to the end mid-word.
+    if (ta && document.activeElement === ta) return;
+    // A genuinely new selection, so any uncommitted edit belonged to the object
+    // that just went away. Blur has already had its chance to commit it.
+    pending.current = null;
+    if (!isText || !ta) return;
     ta.focus();
     const end = ta.value.length;
     ta.setSelectionRange(end, end);
@@ -145,7 +162,7 @@ export function Inspector() {
                   value={text}
                   onChange={(e) => {
                     setText(e.target.value);
-                    pending.current = { key: objKey, value: e.target.value };
+                    pending.current = e.target.value;
                     applyTextDebounced(selectedObject.pageId, obj.index, e.target.value);
                   }}
                   onKeyDown={(e) => {
@@ -162,11 +179,12 @@ export function Inspector() {
                     // caret, so while typing the line just grows.
                     if (applyTimer.current) clearTimeout(applyTimer.current);
                     const edit = pending.current;
-                    // Nothing typed, or the selection already moved on and this
-                    // blur belongs to a line that is no longer the one shown.
-                    if (!edit || edit.key !== objKey) return;
+                    // Nothing was typed, so there is nothing to commit. Blur
+                    // fires just from moving between lines, and committing on
+                    // that would rewrite and re-wrap a paragraph nobody touched.
+                    if (edit === null) return;
                     pending.current = null;
-                    void editObjectText(selectedObject.pageId, obj.index, edit.value, {
+                    void editObjectText(selectedObject.pageId, obj.index, edit, {
                       reflow: true,
                     });
                   }}
