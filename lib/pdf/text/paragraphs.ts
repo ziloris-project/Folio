@@ -109,10 +109,29 @@ export function paragraphAt(objects: PageObject[], index: number): Paragraph | n
 
   if (lines.length < 2 || leading === null) return null;
 
-  let columnWidth = 0;
-  for (const line of lines) columnWidth = Math.max(columnWidth, spanOf(line));
+  const edited = lines.findIndex((o) => o.index === index);
+  return { lines, target: edited, leading, columnWidth: columnOf(lines, edited) };
+}
 
-  return { lines, target: lines.findIndex((o) => o.index === index), leading, columnWidth };
+/**
+ * How wide the block was set, judged from the lines that still show it.
+ *
+ * The edited line is never counted. By the time a re-wrap is planned it already
+ * holds the new text, so a line that was made longer would be the widest in the
+ * paragraph and would define the column it just overflowed: the text would be
+ * "re-wrapped" to exactly the width it already overran, and nothing would move.
+ *
+ * The final line is skipped too when there is an interior line to use instead.
+ * A paragraph's last line stops wherever the text ran out, so it says nothing
+ * about the column, while every interior line was broken against it.
+ */
+function columnOf(lines: TextObject[], target: number): number {
+  const interior = lines.filter((_, i) => i !== target && i !== lines.length - 1);
+  const others = lines.filter((_, i) => i !== target);
+  const evidence = interior.length ? interior : others;
+  let width = 0;
+  for (const line of evidence) width = Math.max(width, spanOf(line));
+  return width;
 }
 
 /**
