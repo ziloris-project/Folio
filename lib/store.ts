@@ -3,11 +3,10 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
-import { features } from "./config";
+import { features, isFeatureEnabled } from "./config";
 import { validateDocumentFile, validatePdfFile } from "./files";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
-import { isFeatureEnabled } from "./config";
 import { spanOf } from "./pdf/text/geometry";
 import { calibratedMeasure, loadMetrics } from "./pdf/text/measure";
 import { paragraphAt, reflowParagraph, type Paragraph } from "./pdf/text/paragraphs";
@@ -444,19 +443,35 @@ export const useEditor = create<EditorState>((set, get) => ({
     // while you work and settles into the paragraph when you are done.
     const plan = opts?.reflow ? await planReflow(get, pageId, index, text) : null;
 
+    let rejected = false;
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
-      if (!plan) {
-        setObjectText(doc, pageIndex, index, text);
-        // The line's remaining runs are now spelled out by the one just
-        // rewritten, so they have to stop drawing. Blank them rather than delete
-        // them: removing an object renumbers every index above it, which would
-        // slide the selection out from under the caret between two keystrokes.
-        // An empty run draws nothing and is dropped on the next enumeration.
-        for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
+      if (plan) {
+        rejected = !applyReflow(doc, pageIndex, plan);
         return;
       }
-      applyReflow(doc, pageIndex, plan);
+      // A run's font is often an embedded subset carrying only the glyphs the
+      // file already used, so it can refuse characters that were never on the
+      // page. PDFium reports that and leaves the run's text alone. Check before
+      // blanking the line's other runs, because blanking around a refused write
+      // erases the line and leaves only its first run behind.
+      if (!setObjectText(doc, pageIndex, index, text)) {
+        rejected = true;
+        return;
+      }
+      // The line's remaining runs are now spelled out by the one just
+      // rewritten, so they have to stop drawing. Blank them rather than delete
+      // them: removing an object renumbers every index above it, which would
+      // slide the selection out from under the caret between two keystrokes.
+      // An empty run draws nothing and is dropped on the next enumeration.
+      for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
     });
+
+    if (rejected) {
+      get().showToast(
+        "That text uses an embedded font without those characters. Replace the font to edit this line.",
+        "error",
+      );
+    }
   },
 
   setObjectColor: async (pageId, index, color, which) => {
@@ -707,17 +722,33 @@ async function planReflow(
     sampleText: target.text,
     sampleWidth: spanOf(target),
   });
-  return { paragraph, lines: reflowParagraph(paragraph, text, measure) };
+  const lines = reflowParagraph(paragraph, text, measure);
+
+  // If the re-wrap lands on exactly what is already there, do not touch the
+  // page. Rewriting a paragraph to the state it is already in still rebuilds
+  // its runs and still costs an undo step, and any drift between our metrics
+  // and the file's would show up as the block twitching for no reason.
+  const current = paragraph.lines.slice(paragraph.target).map((l) => l.text);
+  if (lines.length === current.length && lines.every((t, i) => t === current[i])) return null;
+
+  return { paragraph, lines };
 }
 
 /**
- * Write a reflowed paragraph back onto the page.
+ * Write a reflowed paragraph back onto the page. Returns false if the font
+ * refused any of the text, in which case nothing was changed.
  *
- * Existing lines are rewritten in place, which keeps every index stable and so
- * keeps the selection valid. A paragraph that grew gets new objects appended
- * below the last line, stepping down by its own leading and in its own writing
- * direction, so this works on rotated text too. A paragraph that shrank leaves
- * its surplus lines blank, and they disappear on the next enumeration.
+ * Only lines from the edited one down are touched, matching what was reflowed.
+ * They are rewritten in place, which keeps every index stable and so keeps the
+ * selection valid. A paragraph that grew gets new objects appended below its
+ * last line, stepping down by its own leading along its own writing direction,
+ * so this holds for rotated text. A paragraph that shrank leaves its surplus
+ * lines blank, and they disappear on the next enumeration.
+ *
+ * Every write is attempted before any line is blanked. A subset font that
+ * cannot encode the new text makes PDFium reject the write and leave the run
+ * alone, and blanking the rest of the paragraph around a rejected write would
+ * erase text that is still perfectly good.
  *
  * What this does not do is push whatever sits below the paragraph out of the
  * way. A block that grows can therefore overlap the one after it. Moving the
@@ -725,24 +756,31 @@ async function planReflow(
  * across tables, columns and the page boundary, which is a much larger change
  * than reflowing one paragraph.
  */
-function applyReflow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan) {
+function applyReflow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan): boolean {
   const { paragraph, lines } = plan;
-  paragraph.lines.forEach((line, i) => {
-    setObjectText(doc, pageIndex, line.index, lines[i] ?? "");
+  const rewritten = paragraph.lines.slice(paragraph.target);
+
+  // Dry run first: one rejected line would otherwise leave the paragraph half
+  // rewritten, which is worse than not applying the edit at all.
+  for (let i = 0; i < rewritten.length; i++) {
+    if (!setObjectText(doc, pageIndex, rewritten[i].index, lines[i] ?? "")) return false;
+  }
+  for (const line of rewritten) {
     for (const p of line.parts) {
       if (p !== line.index) setObjectText(doc, pageIndex, p, "");
     }
-  });
+  }
 
   const last = paragraph.lines[paragraph.lines.length - 1];
   // "Down" one line in the text's own frame. The line normal is (-dy, dx), so
   // stepping against it is (dy, -dx); for unrotated text that is plain -leading
   // on y.
-  for (let i = paragraph.lines.length; i < lines.length; i++) {
-    const steps = i - (paragraph.lines.length - 1);
+  for (let i = rewritten.length; i < lines.length; i++) {
+    const steps = i - (rewritten.length - 1);
     const drop = paragraph.leading * steps;
     appendLineLike(doc, pageIndex, last.index, lines[i], drop * last.dir.y, -drop * last.dir.x);
   }
+  return true;
 }
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
