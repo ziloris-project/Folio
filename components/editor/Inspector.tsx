@@ -80,6 +80,11 @@ export function Inspector() {
   const objKey = selectedObject ? `${selectedObject.pageId}:${selectedObject.index}` : "";
   const [text, setText] = useState(obj?.type === "text" ? obj.text : "");
   const [prevKey, setPrevKey] = useState(objKey);
+  // What the user has actually typed, and which object it belongs to. Selecting
+  // a line focuses this field, so moving from one line to the next fires a blur
+  // with no edit behind it; committing that would rewrite (and re-wrap) a
+  // paragraph nobody touched. Only a real keystroke puts something here.
+  const pending = useRef<{ key: string; value: string } | null>(null);
   if (prevKey !== objKey) {
     setPrevKey(objKey);
     setText(obj?.type === "text" ? obj.text : "");
@@ -91,6 +96,10 @@ export function Inspector() {
   const isText = obj?.type === "text";
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
+    // Drop any uncommitted edit belonging to the previous selection. This runs
+    // after blur has already had its chance to commit, so a real edit is never
+    // lost here - only one left over from an object that is no longer shown.
+    pending.current = null;
     if (!isText) return;
     const ta = textareaRef.current;
     if (!ta) return;
@@ -136,6 +145,7 @@ export function Inspector() {
                   value={text}
                   onChange={(e) => {
                     setText(e.target.value);
+                    pending.current = { key: objKey, value: e.target.value };
                     applyTextDebounced(selectedObject.pageId, obj.index, e.target.value);
                   }}
                   onKeyDown={(e) => {
@@ -151,7 +161,14 @@ export function Inspector() {
                     // every keystroke would move text between lines under the
                     // caret, so while typing the line just grows.
                     if (applyTimer.current) clearTimeout(applyTimer.current);
-                    void editObjectText(selectedObject.pageId, obj.index, text, { reflow: true });
+                    const edit = pending.current;
+                    // Nothing typed, or the selection already moved on and this
+                    // blur belongs to a line that is no longer the one shown.
+                    if (!edit || edit.key !== objKey) return;
+                    pending.current = null;
+                    void editObjectText(selectedObject.pageId, obj.index, edit.value, {
+                      reflow: true,
+                    });
                   }}
                   rows={3}
                   className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
