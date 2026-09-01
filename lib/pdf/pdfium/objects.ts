@@ -131,9 +131,9 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
     if (type === OBJ_TEXT) {
       const text = readText(I, obj, textPage);
       // An empty run draws nothing and offers nothing to select or edit, so it
-      // has no place in the list. That is also what lets editing a grouped word
-      // blank its spare runs instead of deleting them, which would renumber
-      // every index above and move the selection mid-keystroke.
+      // has no place in the list. Files do contain them, and PDFium will not let
+      // us create one (FPDFText_SetText traps on an empty string), so this only
+      // ever filters what a document arrived with.
       if (!text) continue;
       const m = getMatrix(I, obj);
       out.push({ index: i, parts: [i], type: "text", bbox, text, fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
@@ -177,7 +177,13 @@ function setMatrix(I: Pdfium, o: number, m: Matrix) {
 
 // --- Edit operations -------------------------------------------------------
 
-/** Replace a text object's string. Returns false if the font rejected it. */
+/**
+ * Replace a text object's string. Returns false if the font rejected it.
+ *
+ * Never pass an empty string: PDFium traps inside the wasm rather than
+ * returning false, taking the whole module down with it. Removing a run is the
+ * supported way to make it stop drawing (see deleteObject).
+ */
 export function setObjectText(doc: PdfiumDoc, pageIndex: number, objIndex: number, text: string): boolean {
   const I = doc.I;
   const w = writeWideString(I, text);

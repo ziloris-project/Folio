@@ -444,27 +444,31 @@ export const useEditor = create<EditorState>((set, get) => ({
     const plan = opts?.reflow ? await planReflow(get, pageId, index, text) : null;
 
     let rejected = false;
+    let removed: number[] = [];
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
       if (plan) {
-        rejected = !applyReflow(doc, pageIndex, plan);
+        const out = applyReflow(doc, pageIndex, plan);
+        rejected = !out.ok;
+        removed = out.removed;
         return;
       }
       // A run's font is often an embedded subset carrying only the glyphs the
       // file already used, so it can refuse characters that were never on the
       // page. PDFium reports that and leaves the run's text alone. Check before
-      // blanking the line's other runs, because blanking around a refused write
-      // erases the line and leaves only its first run behind.
+      // touching the rest of the line, because tearing it down around a refused
+      // write erases the line and leaves only its first run behind.
       if (!setObjectText(doc, pageIndex, index, text)) {
         rejected = true;
         return;
       }
-      // The line's remaining runs are now spelled out by the one just
-      // rewritten, so they have to stop drawing. Blank them rather than delete
-      // them: removing an object renumbers every index above it, which would
-      // slide the selection out from under the caret between two keystrokes.
-      // An empty run draws nothing and is dropped on the next enumeration.
-      for (const p of parts) if (p !== index) setObjectText(doc, pageIndex, p, "");
+      // The line's other runs are now spelled out by the one just rewritten, so
+      // they have to go.
+      removed = dropRuns(doc, pageIndex, parts, index);
     });
+
+    // Removing a run renumbers every index above it, so a selection sitting
+    // above one of them now points at the wrong object.
+    reindexSelection(get, set, pageId, index, removed);
 
     if (rejected) {
       get().showToast(
@@ -533,14 +537,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!docP) return;
     const doc = await docP;
     get().beginHistory();
-    // recreateTextObject rebuilds the entire string from the anchor run, so a
-    // grouped word's other runs would draw their glyphs a second time
-    // underneath. Blank them first (not delete, which would move the anchor
-    // index out from under the call below).
-    for (const p of target.parts) {
-      if (p !== index) setObjectText(doc, page.sourcePageIndex, p, "");
-    }
-    const newIndex = recreateTextObject(doc, page.sourcePageIndex, index, {
+    // recreateTextObject rebuilds the whole line from the anchor run, so the
+    // line's other runs would draw their glyphs underneath it a second time.
+    // Remove them first, and shift the anchor by however many sat below it,
+    // since removing an object renumbers everything above.
+    const removed = dropRuns(doc, page.sourcePageIndex, target.parts, index);
+    const anchor = index - removed.filter((p) => p < index).length;
+    const newIndex = recreateTextObject(doc, page.sourcePageIndex, anchor, {
       fontName,
       text: target.text,
       fontSize: target.fontSize,
@@ -756,21 +759,28 @@ async function planReflow(
  * across tables, columns and the page boundary, which is a much larger change
  * than reflowing one paragraph.
  */
-function applyReflow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan): boolean {
+function applyReflow(
+  doc: PdfiumDoc,
+  pageIndex: number,
+  plan: ReflowPlan,
+): { ok: boolean; removed: number[] } {
   const { paragraph, lines } = plan;
   const rewritten = paragraph.lines.slice(paragraph.target);
 
-  // Dry run first: one rejected line would otherwise leave the paragraph half
-  // rewritten, which is worse than not applying the edit at all.
-  for (let i = 0; i < rewritten.length; i++) {
-    if (!setObjectText(doc, pageIndex, rewritten[i].index, lines[i] ?? "")) return false;
-  }
-  for (const line of rewritten) {
-    for (const p of line.parts) {
-      if (p !== line.index) setObjectText(doc, pageIndex, p, "");
+  // Write every line before removing anything. One refused line would otherwise
+  // leave the paragraph half rewritten, which is worse than not applying the
+  // edit at all. A line the re-wrap emptied out is removed rather than written,
+  // since PDFium has no empty text object to set it to.
+  const kept = Math.min(rewritten.length, lines.length);
+  for (let i = 0; i < kept; i++) {
+    if (!setObjectText(doc, pageIndex, rewritten[i].index, lines[i])) {
+      return { ok: false, removed: [] };
     }
   }
 
+  // Append before removing: the model run and the leading are expressed in the
+  // current numbering, and appended objects land at the end where later
+  // removals cannot disturb anything we still need.
   const last = paragraph.lines[paragraph.lines.length - 1];
   // "Down" one line in the text's own frame. The line normal is (-dy, dx), so
   // stepping against it is (dy, -dx); for unrotated text that is plain -leading
@@ -780,7 +790,57 @@ function applyReflow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan): boole
     const drop = paragraph.leading * steps;
     appendLineLike(doc, pageIndex, last.index, lines[i], drop * last.dir.y, -drop * last.dir.x);
   }
-  return true;
+
+  // Everything the rewrite made redundant: the runs each line was assembled
+  // from, plus whole lines the paragraph no longer needs because it shrank.
+  const surplus: number[] = [];
+  rewritten.forEach((line, i) => {
+    if (i >= lines.length) surplus.push(...line.parts);
+    else surplus.push(...line.parts.filter((p) => p !== line.index));
+  });
+  return { ok: true, removed: dropRuns(doc, pageIndex, surplus) };
+}
+
+/**
+ * Remove page objects, returning the indices actually removed.
+ *
+ * Descending, because removing an object renumbers every index above it. This
+ * is how a run stops drawing: PDFium rejects an empty string outright (it traps
+ * inside the wasm rather than returning false), so a run that is no longer
+ * wanted has to be deleted, not emptied.
+ */
+function dropRuns(
+  doc: PdfiumDoc,
+  pageIndex: number,
+  indices: number[],
+  keep?: number,
+): number[] {
+  const drop = [...new Set(indices)].filter((p) => p !== keep).sort((a, b) => b - a);
+  for (const p of drop) deletePdfObject(doc, pageIndex, p);
+  return drop;
+}
+
+/**
+ * Follow the selection after runs were removed from under it.
+ *
+ * Every removed index below the selected object shifts it down by one. Without
+ * this the inspector would still be pointing at `index` while the object that
+ * lives there is now a different one, so the next keystroke would be typed into
+ * the wrong line.
+ */
+function reindexSelection(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  pageId: string,
+  index: number,
+  removed: number[],
+) {
+  const shift = removed.filter((p) => p < index).length;
+  if (!shift) return;
+  const sel = get().selectedObject;
+  if (sel?.pageId === pageId && sel.index === index) {
+    set({ selectedObject: { pageId, index: index - shift } });
+  }
 }
 
 /** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
