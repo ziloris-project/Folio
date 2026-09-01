@@ -11,7 +11,8 @@
     "copy-wasm": "node -e \"require('fs').copyFileSync('node_modules/@embedpdf/pdfium/dist/pdfium.wasm','public/pdfium.wasm')\"",
     "postinstall": "npm run copy-wasm",
     "deploy": "next build && wrangler deploy",
-    "preview": "next build && wrangler dev"
+    "preview": "next build && wrangler dev",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@embedpdf/pdfium": "^2.14.4",
@@ -35,12 +36,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10",
