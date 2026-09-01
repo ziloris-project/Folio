@@ -7,7 +7,7 @@ import { features, isFeatureEnabled } from "./config";
 import { validateDocumentFile, validatePdfFile } from "./files";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
-import { spanOf } from "./pdf/text/geometry";
+import { baselineOf, extentOf, spanOf } from "./pdf/text/geometry";
 import { calibratedMeasure, loadMetrics } from "./pdf/text/measure";
 import { paragraphAt, reflowParagraph, type Paragraph } from "./pdf/text/paragraphs";
 import {
@@ -695,6 +695,8 @@ interface ReflowPlan {
   paragraph: Paragraph;
   /** The paragraph's text after the edit, broken to fit its column. */
   lines: string[];
+  /** The page as it stands, so content below the block can be moved. */
+  objects: PageObject[];
 }
 
 /**
@@ -734,7 +736,7 @@ async function planReflow(
   const current = paragraph.lines.slice(paragraph.target).map((l) => l.text);
   if (lines.length === current.length && lines.every((t, i) => t === current[i])) return null;
 
-  return { paragraph, lines };
+  return { paragraph, lines, objects };
 }
 
 /**
@@ -778,6 +780,10 @@ function applyReflow(
     }
   }
 
+  // Make room before adding lines, so the new ones land in space that is
+  // already clear rather than on top of the next block.
+  shiftBelow(doc, pageIndex, plan, lines.length - rewritten.length);
+
   // Append before removing: the model run and the leading are expressed in the
   // current numbering, and appended objects land at the end where later
   // removals cannot disturb anything we still need.
@@ -799,6 +805,48 @@ function applyReflow(
     else surplus.push(...line.parts.filter((p) => p !== line.index));
   });
   return { ok: true, removed: dropRuns(doc, pageIndex, surplus) };
+}
+
+/**
+ * Move what sits below a paragraph after it changed height.
+ *
+ * A block that grows a line has to put that line somewhere, and without this it
+ * lands on top of whatever follows: the last line of a re-wrapped paragraph
+ * printed straight through the first line of the next one. Shifting the rest of
+ * the column by the same amount is what a text editor does, and is the
+ * difference between re-wrapping being usable and being a trap.
+ *
+ * Only text that shares the column moves. A figure or a rule is left alone,
+ * because we have no way to tell whether it was anchored to this block or to
+ * the page, and moving artwork on a guess is worse than leaving a gap. Content
+ * near the foot of the page can be pushed off it; the page does not grow.
+ */
+function shiftBelow(doc: PdfiumDoc, pageIndex: number, plan: ReflowPlan, extraLines: number) {
+  if (!extraLines) return;
+  const { paragraph, objects } = plan;
+
+  // The block's own runs never move relative to themselves.
+  const own = new Set<number>();
+  for (const line of paragraph.lines) for (const p of line.parts) own.add(p);
+
+  const bottom = Math.min(...paragraph.lines.map(baselineOf));
+  const left = Math.min(...paragraph.lines.map((l) => extentOf(l).min));
+  const right = Math.max(...paragraph.lines.map((l) => extentOf(l).max));
+
+  const dir = paragraph.lines[0].dir;
+  const drop = extraLines * paragraph.leading;
+  // Down one line in the text's own frame: the line normal is (-dy, dx), so
+  // moving against it is (dy, -dx). For unrotated text that is -drop on y.
+  const dx = drop * dir.y;
+  const dy = -drop * dir.x;
+
+  for (const o of objects) {
+    if (o.type !== "text" || own.has(o.index)) continue;
+    if (baselineOf(o) >= bottom) continue; // above the block, or on its last line
+    const e = extentOf(o);
+    if (e.max <= left || e.min >= right) continue; // a different column
+    for (const p of o.parts) moveObject(doc, pageIndex, p, dx, dy);
+  }
 }
 
 /**
