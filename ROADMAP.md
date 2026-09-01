@@ -74,8 +74,9 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
   separators between runs are ever at stake. Refining that call is issue #1.
 - Retyping a line that mixes styles adopts the style the line opens with, since
   the whole line is rewritten through its first run.
-- Re-wrap reflows the edited paragraph only. Content below it is not pushed
-  down, so a paragraph that grows a line can overlap what follows.
+- Re-wrap shifts the rest of the text column when a paragraph changes height,
+  but images and rules stay put, and content near the foot of a page can be
+  pushed off it rather than onto the next page.
 - Re-wrap needs a paragraph to measure a column from, so a line standing on its
   own is never re-wrapped: nothing on the page says how wide it may become.
 - A hyphen at a line break survives re-wrapping. Telling a split word

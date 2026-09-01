@@ -48,6 +48,16 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 | Planned | Form-field (AcroForm) editing |
 | Planned | Broader mobile / touch polish |
 
+## Tests
+
+`npm test` runs the unit suite (vitest). `npm run test:e2e` drives the editor in
+a real browser (Playwright), starting the dev server itself.
+
+Both matter. PDFium is a WebAssembly module, and a call it rejects traps the
+whole instance rather than returning an error, so an editing bug can be
+invisible to the unit suite and fatal in a browser. Changes to the text editing
+or re-wrap paths should be checked with both.
+
 ## Tech stack
 
 - **[Next.js 16](https://nextjs.org)** (App Router) + **React 19** + **TypeScript**
