@@ -150,3 +150,26 @@ test("undo and redo a font replacement, then edit the line", async ({ page }) =>
   await expectExportLoads(page);
   expect(traps).toEqual([]);
 });
+
+test("re-wraps a font-replaced line without overrunning the column", async ({ page }) => {
+  const traps = await openFixture(page);
+  const before = await readLayout(page);
+  const column = Math.max(...before.slice(0, 3).map((l) => l.width));
+
+  await selectLine(page, ORIGINAL[1]);
+  await replaceFont(page, "Times-Roman");
+  await appendText(page, " and a lot of extra words to overflow the column");
+  await commit(page);
+
+  const lines = await readLayout(page);
+  const paragraph = lines.slice(0, 4);
+  expect(textsOf(paragraph).join(" ")).toBe(
+    `${ORIGINAL[0]} ${ORIGINAL[1]} and a lot of extra words to overflow the column ${ORIGINAL[2]}`,
+  );
+  // Words pushed onto a line still set in the original font have to be measured
+  // in that font. Measured in the replacement instead, they overran the column.
+  for (const l of paragraph) expect(l.width).toBeLessThanOrEqual(column + 2);
+  expect(textsOf(lines)).toContain(ORIGINAL[3]);
+  await expectExportLoads(page);
+  expect(traps).toEqual([]);
+});

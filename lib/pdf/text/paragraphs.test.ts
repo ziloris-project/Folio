@@ -162,6 +162,21 @@ describe("reflowParagraph", () => {
     expect(reflowParagraph(p, "c", mono)).toEqual(["c eee", "fff"]);
   });
 
+  it("fills each rewritten line in the measure it will be drawn with", () => {
+    // The edited line was given a narrower font; the line below it was not.
+    const objs = block(["aaa bbb", "ccc ddd", "eee fff"], { w: 7 });
+    const p = paragraphAt(objs, 1)!;
+    const half = (t: string) => t.length / 2;
+    const perLine = (i: number) => (i === 0 ? half : mono);
+    expect(reflowParagraph(p, "ccc ddd ggg iii jjj", half, perLine)).toEqual([
+      "ccc ddd ggg",
+      "iii jjj",
+      "eee fff",
+    ]);
+    // Measured throughout in the narrow face, the lower lines overran by half.
+    expect(reflowParagraph(p, "ccc ddd ggg iii jjj", half)).toEqual(["ccc ddd ggg", "iii jjj eee", "fff"]);
+  });
+
   it("leaves a hyphen at a break alone", () => {
     // "part-" / "time" is a real compound and "environ-" / "ment" is a split
     // word, and nothing here can tell them apart. Joining wrongly corrupts the
