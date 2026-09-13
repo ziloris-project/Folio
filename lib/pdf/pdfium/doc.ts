@@ -51,6 +51,8 @@ export interface PageSize {
 export class PdfiumDoc {
   private pages = new Map<number, number>();
   private textPages = new Map<number, number>();
+  /** Pages edited since their content stream was last rewritten. */
+  private staleContent = new Set<number>();
   private intrinsicRotation: number[] = [];
 
   private constructor(
@@ -113,6 +115,25 @@ export class PdfiumDoc {
   /** Persist content-stream changes for a page after editing its objects. */
   regenerate(i: number): void {
     this.I.FPDFPage_GenerateContent(this.pageHandle(i));
+    this.staleContent.delete(i);
+    this.dropTextPage(i);
+  }
+
+  /**
+   * Record an edit without rewriting the page's content stream yet.
+   *
+   * Rendering and object reads work from PDFium's in-memory page objects, so
+   * an edit is on screen without the stream. Rewriting it serializes every
+   * object on the page, 15-35 ms on a page of 2,700 glyph runs, which is too
+   * much to spend per keystroke on bytes only a save reads. save() rewrites
+   * any page left stale here before it serializes.
+   */
+  touch(i: number): void {
+    this.staleContent.add(i);
+    this.dropTextPage(i);
+  }
+
+  private dropTextPage(i: number): void {
     // The cached text page is stale after content changes.
     const tp = this.textPages.get(i);
     if (tp) {
@@ -173,6 +194,7 @@ export class PdfiumDoc {
   /** Save the (possibly edited) document to a fresh byte array. */
   save(): Uint8Array {
     const I = this.I;
+    for (const i of [...this.staleContent]) this.regenerate(i);
     const writer = I.PDFiumExt_OpenFileWriter();
     try {
       I.PDFiumExt_SaveAsCopy(this.handle, writer);
