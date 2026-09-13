@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { clamp } from "./utils";
 import { features, isFeatureEnabled } from "./config";
-import { validateDocumentFile, validatePdfFile } from "./files";
+import { sniffFontData, validateDocumentFile, validateFontFile, validatePdfFile } from "./files";
 import { openPdfiumDoc, getPdfiumDoc, dropPdfiumDoc, reloadPdfiumDoc } from "./pdf/pdfium/registry";
 import { PasswordRequiredError, type PdfiumDoc } from "./pdf/pdfium/doc";
 import { baselineOf, extentOf, spanOf } from "./pdf/text/geometry";
@@ -44,6 +44,19 @@ export interface ToolSettings {
 
 export type Status = "empty" | "loading" | "ready" | "error" | "password";
 
+/**
+ * A font file the user supplied for this document. Only the bytes are kept
+ * here: PDFium font handles belong to one PdfiumDoc instance, and undo/redo
+ * replaces that instance, so each document loads its own handle on demand
+ * (PdfiumDoc.loadFont caches it under `id`).
+ */
+export interface UploadedFont {
+  id: string;
+  /** Label for the font picker, taken from the file name. */
+  name: string;
+  bytes: Uint8Array;
+}
+
 interface EditorState {
   status: Status;
   error: string | null;
@@ -74,6 +87,8 @@ interface EditorState {
   /** Cache of enumerated page objects, keyed by page id (lazy in edit mode). */
   pageObjects: Record<string, PageObject[]>;
   selectedObject: { pageId: string; index: number } | null;
+  /** Fonts uploaded while this document is open, offered for every text line. */
+  uploadedFonts: UploadedFont[];
 
   // ----- undo/redo history -----
   /** Live per-source document bytes; new ref after each content edit. */
@@ -130,7 +145,10 @@ interface EditorState {
   setObjectColor: (pageId: string, index: number, color: RGBA, which: "fill" | "stroke") => Promise<void>;
   setObjectStrokeWidthValue: (pageId: string, index: number, width: number) => Promise<void>;
   setObjectFontSizeValue: (pageId: string, index: number, current: number, next: number) => Promise<void>;
+  /** `fontName` is a standard-14 name or the id of an entry in uploadedFonts. */
   setObjectFontName: (pageId: string, index: number, fontName: string) => Promise<void>;
+  /** Validate a font file, remember it for this document and apply it to the line. */
+  uploadFont: (pageId: string, index: number, file: File) => Promise<void>;
   moveObjectBy: (pageId: string, index: number, dxOverlay: number, dyOverlay: number) => Promise<void>;
   deleteObject: (pageId: string, index: number) => Promise<void>;
 
@@ -270,6 +288,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   pageObjects: {},
   selectedObject: null,
+  uploadedFonts: [],
 
   pendingLoad: null,
   passwordError: null,
@@ -353,6 +372,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       pendingImage: null,
       pageObjects: {},
       selectedObject: null,
+      uploadedFonts: [],
       sourceBytes: {},
       past: [],
       future: [],
@@ -634,6 +654,14 @@ export const useEditor = create<EditorState>((set, get) => ({
     const docP = getPdfiumDoc(sourceId);
     if (!docP) return;
     const doc = await docP;
+    // An uploaded font is loaded into this document here, inside the edit, so a
+    // document that undo/redo just reloaded from bytes gets its own handle.
+    const uploaded = get().uploadedFonts.find((f) => f.id === fontName);
+    const font = uploaded ? doc.loadFont(uploaded.id, uploaded.bytes) : undefined;
+    if (font === 0) {
+      get().showToast("That font could not be loaded.", "error");
+      return;
+    }
     get().beginHistory();
     // recreateTextObject rebuilds the whole line from the anchor run, so the
     // line's other runs would draw their glyphs underneath it a second time.
@@ -646,6 +674,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       text: target.text,
       fontSize: target.fontSize,
       color: target.color,
+      font,
     });
     doc.regenerate(page.sourcePageIndex);
     set((s) => ({
@@ -654,6 +683,39 @@ export const useEditor = create<EditorState>((set, get) => ({
     }));
     await get().refreshObjects(pageId);
     if (newIndex >= 0) set({ selectedObject: { pageId, index: newIndex } });
+  },
+
+  uploadFont: async (pageId, index, file) => {
+    const check = validateFontFile(file);
+    if (!check.ok) {
+      get().showToast(check.error ?? "Couldn't use that font.", "error");
+      return;
+    }
+    const bytes = await readBytes(file);
+    const sniff = sniffFontData(bytes);
+    if (!sniff.ok) {
+      get().showToast(sniff.error ?? "Couldn't use that font.", "error");
+      return;
+    }
+    const page = get().pages.find((p) => p.id === pageId);
+    if (!page?.sourceId) return;
+    const docP = getPdfiumDoc(page.sourceId);
+    if (!docP) return;
+    const doc = await docP;
+
+    // The same file picked twice is one font, not two entries in the picker.
+    const known = get().uploadedFonts.find((f) => sameBytes(f.bytes, bytes));
+    const entry = known ?? { id: `font-${nanoid()}`, name: file.name.replace(/\.(ttf|otf)$/i, ""), bytes };
+
+    // Load before remembering it, so a file that only looks like a font never
+    // reaches the picker. A signature is easy to get right on a corrupt file,
+    // and PDFium answers that with a null handle rather than a trap.
+    if (!doc.loadFont(entry.id, entry.bytes)) {
+      get().showToast("That font file is damaged or unsupported.", "error");
+      return;
+    }
+    if (!known) set((s) => ({ uploadedFonts: [...s.uploadedFonts, entry] }));
+    await get().setObjectFontName(pageId, index, entry.id);
   },
 
   // ----- undo/redo -----
@@ -738,6 +800,7 @@ async function openInto(
       selectedAnnotationId: null,
       pageObjects: {},
       selectedObject: null,
+      uploadedFonts: [],
       sourceBytes: { [source.id]: source.bytes },
       past: [],
       future: [],
@@ -785,6 +848,13 @@ async function mergeInto(
       get().showToast("Couldn't merge PDF: " + (e instanceof Error ? e.message : "unknown error"), "error");
     }
   }
+}
+
+/** Byte-for-byte equality, used to recognise a font file uploaded twice. */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 /** The cached page-object entry a selection index refers to, if still listed. */
