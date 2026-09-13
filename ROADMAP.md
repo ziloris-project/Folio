@@ -17,6 +17,9 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 - Thumbnail rail with active-page sync and click-to-jump
 - Edit existing content objects in place: move, retype, recolor (fill/stroke),
   stroke width, font size, delete
+- Retyped text is drawn on the page as you type, without leaving the field; a
+  typing session is a single undo step, and export includes text typed a moment
+  before it
 - Rebuild per-glyph text runs into lines, so clicking page text selects the
   whole line instead of one letter, and every edit applies across it
 - Re-wrap the surrounding paragraph when an edited line changes length, so text
@@ -77,6 +80,17 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 - Re-wrap shifts the rest of the text column when a paragraph changes height,
   but images and rules stay put, and content near the foot of a page can be
   pushed off it rather than onto the next page.
+- While typing, the edited line only grows or shrinks in place. The paragraph
+  re-wraps when you leave the field, so text can run past the column until
+  then, since re-wrapping live would move text between lines under the caret.
+- Leaving the field after typing does the work typing defers: the re-wrap, the
+  page's content stream and a save of the document. On a page of thousands of
+  glyph runs in a large file that is a pause of a few hundred milliseconds.
+  The first keystroke into a line built from many glyph runs also re-reads the
+  page once, since merging the runs renumbers it.
+- A line cannot be emptied from the text field. PDFium has no empty text run
+  (it traps on one), so clearing the field, or leaving only whitespace, keeps
+  the last text that was applied. Delete the object to remove a line.
 - Re-wrap needs a paragraph to measure a column from, so a line standing on its
   own is never re-wrapped: nothing on the page says how wide it may become.
 - A hyphen at a line break survives re-wrapping. Telling a split word
