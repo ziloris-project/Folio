@@ -159,7 +159,7 @@ function tighterElsewhere(candidates: TextObject[], i: number, leading: number |
 /**
  * How wide the block was set, judged from the lines that still show it.
  *
- * The edited line is never counted. By the time a re-wrap is planned it already
+ * The edited line is normally not counted. By the time a re-wrap is planned it already
  * holds the new text, so a line that was made longer would be the widest in the
  * paragraph and would define the column it just overflowed: the text would be
  * "re-wrapped" to exactly the width it already overran, and nothing would move.
@@ -167,6 +167,16 @@ function tighterElsewhere(candidates: TextObject[], i: number, leading: number |
  * The final line is skipped too when there is an interior line to use instead.
  * A paragraph's last line stops wherever the text ran out, so it says nothing
  * about the column, while every interior line was broken against it.
+ *
+ * That leaves one shape with no real evidence at all: a two-line paragraph whose
+ * first line is the one being edited. Its only other line is the closing one,
+ * which is a lower bound on the column and usually a poor one. Wrapping to it
+ * squeezed a paragraph that had always fit, so typing one word onto "A second
+ * block sits below the first one here," broke it across three short lines. There
+ * the edited line is counted after all, because it did fit the column before
+ * the edit. The cost is that lengthening that line grows it rather than
+ * re-wrapping it, which keeps the layout the file had instead of inventing a
+ * narrower one.
  */
 function columnOf(lines: TextObject[], target: number): number {
   const interior = lines.filter((_, i) => i !== target && i !== lines.length - 1);
@@ -174,6 +184,9 @@ function columnOf(lines: TextObject[], target: number): number {
   const evidence = interior.length ? interior : others;
   let width = 0;
   for (const line of evidence) width = Math.max(width, spanOf(line));
+  if (!interior.length && target !== lines.length - 1) {
+    width = Math.max(width, spanOf(lines[target]));
+  }
   return width;
 }
 
