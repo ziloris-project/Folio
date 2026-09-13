@@ -23,6 +23,9 @@ import {
 const FPDF_ANNOT = 0x01;
 const FPDF_REVERSE_BYTE_ORDER = 0x10;
 const FPDF_ERR_PASSWORD = 4;
+// Font type for FPDFText_LoadFont (fpdf_edit.h): FPDF_FONT_TYPE1 = 1,
+// FPDF_FONT_TRUETYPE = 2. Only TrueType is used, see loadFont.
+const FPDF_FONT_TRUETYPE = 2;
 
 // Raster caps. Without them, zoom 6x on a hi-DPI screen asks for a ~72-megapixel
 // (~288 MB) bitmap per page, which can exhaust memory and, worse, exceed the
@@ -52,6 +55,8 @@ export class PdfiumDoc {
   private pages = new Map<number, number>();
   private textPages = new Map<number, number>();
   private intrinsicRotation: number[] = [];
+  /** Font handles loaded from user-supplied font files, keyed by the caller's id. */
+  private fonts = new Map<string, number>();
 
   private constructor(
     readonly I: Pdfium,
@@ -189,7 +194,55 @@ export class PdfiumDoc {
     }
   }
 
+  /**
+   * Load a TrueType font file into this document and return its FPDF_FONT
+   * handle, or 0 if PDFium could not parse it. Cached per `key`, so applying the
+   * same upload to a second line reuses one embedded copy instead of adding
+   * another.
+   *
+   * Parameters, per fpdf_edit.h: FPDFText_LoadFont(document, data, size,
+   * font_type, cid).
+   *
+   * - font_type is always FPDF_FONT_TRUETYPE. PDFium writes the file as a
+   *   FontFile2 stream; it has no FontFile3 path, so a CFF-flavoured OpenType
+   *   file would be embedded under the wrong type and other viewers could
+   *   refuse it. The upload check rejects those before they get here.
+   * - cid is true. That makes a Type0 font with a CIDFontType2 descendant,
+   *   Identity-H encoding and a ToUnicode map covering the whole cmap. The
+   *   simple-font alternative is WinAnsi only: PDFium still accepts non-Latin
+   *   text into it and even draws it, but the saved file carries no encoding
+   *   for those characters, so reopening it reads back as garbage.
+   *
+   * Memory: the header documents that the data "will be copied by the font
+   * object", so the heap buffer is freed straight away. This was checked
+   * rather than trusted: overwriting and freeing the buffer immediately after
+   * the call, then churning the heap, still rendered the text, and the font
+   * stream in the saved file was byte-identical to the uploaded file. The
+   * whole file is embedded (PDFium does not subset), Flate-compressed.
+   *
+   * The returned handle holds a reference that FPDFFont_Close releases. Text
+   * objects keep their own reference, so it is only closed in close(), and
+   * before the document: a font releasing its file stream reaches back into
+   * the document that owns it.
+   */
+  loadFont(key: string, bytes: Uint8Array): number {
+    const cached = this.fonts.get(key);
+    if (cached) return cached;
+    const I = this.I;
+    const ptr = writeBytes(I, bytes);
+    let font = 0;
+    try {
+      font = I.FPDFText_LoadFont(this.handle, ptr, bytes.length, FPDF_FONT_TRUETYPE, true);
+    } finally {
+      free(I, ptr);
+    }
+    if (font) this.fonts.set(key, font);
+    return font;
+  }
+
   close(): void {
+    for (const font of this.fonts.values()) this.I.FPDFFont_Close(font);
+    this.fonts.clear();
     for (const tp of this.textPages.values()) this.I.FPDFText_ClosePage(tp);
     for (const p of this.pages.values()) this.I.FPDF_ClosePage(p);
     this.textPages.clear();
