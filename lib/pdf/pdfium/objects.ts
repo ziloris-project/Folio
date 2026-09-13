@@ -316,13 +316,18 @@ export function appendLineLike(
  * frame. (Full reflow of surrounding existing content is not possible - PDFs
  * have no paragraph model - but explicit line breaks are honored.)
  *
+ * Pass `font` to draw in an already-loaded font handle (an uploaded font, see
+ * PdfiumDoc.loadFont) instead of loading `fontName` as a standard-14 face. The
+ * handle is borrowed, not consumed: each new text object takes its own
+ * reference, so the caller's cached handle stays valid for the next line.
+ *
  * Returns the index of the last created object (appended on top), or -1.
  */
 export function recreateTextObject(
   doc: PdfiumDoc,
   pageIndex: number,
   objIndex: number,
-  opts: { fontName: string; text: string; fontSize: number; color: RGBA },
+  opts: { fontName: string; text: string; fontSize: number; color: RGBA; font?: number },
 ): number {
   const I = doc.I;
   const page = doc.pageHandle(pageIndex);
@@ -334,7 +339,7 @@ export function recreateTextObject(
   const scale = Math.hypot(c, d) || 1;
   const [ua, ub, uc, ud] = [a / scale, b / scale, c / scale, d / scale];
 
-  const font = I.FPDFText_LoadStandardFont(doc.handle, opts.fontName);
+  const font = opts.font ?? I.FPDFText_LoadStandardFont(doc.handle, opts.fontName);
   if (!font) return -1;
 
   I.FPDFPage_RemoveObject(page, old);
