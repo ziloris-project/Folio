@@ -95,6 +95,29 @@ describe("groupTextObjects", () => {
     expect(linesOf(objs)).toEqual(["hello world"]);
   });
 
+  it("reads a space drawn as its own run once, not twice", () => {
+    // The importer's layout: one run per word and one per space. PDFium reports
+    // the space against the word before it too, so the word already ends in it.
+    const objs = [
+      glyph("The ", 0, 100, 8),
+      glyph(" ", 8.3, 100, 0),
+      glyph("first ", 11, 100, 10),
+      glyph(" ", 21.3, 100, 0),
+      glyph("line", 24, 100, 9),
+    ];
+    expect(linesOf(objs)).toEqual(["The first line"]);
+  });
+
+  it("keeps a second space run that follows the first", () => {
+    const objs = [
+      glyph("a ", 0, 100, 3),
+      glyph(" ", 3.3, 100, 0),
+      glyph(" ", 6.3, 100, 0),
+      glyph("b", 9.5, 100, 3),
+    ];
+    expect(linesOf(objs)).toEqual(["a  b"]);
+  });
+
   it("joins a line that changes style partway", () => {
     // Line is the unit now, so emphasis inside it does not split the entry.
     const objs = [

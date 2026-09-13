@@ -25,7 +25,9 @@
  * The one guarantee held onto throughout: a run's own characters are never
  * altered or dropped. Text the file spelled out survives verbatim, spaces
  * included, and this only ever adds separators between runs. A file whose
- * spacing is already explicit cannot be made worse.
+ * spacing is already explicit cannot be made worse. (The one thing folded away
+ * is a space PDFium reports twice, once in a word and once as the space run
+ * after it; see joinRuns.)
  */
 import type { PageObject, PdfBBox, RGBA, TextObject } from "../types";
 import { baselineOf, extentOf, gapBetween } from "../text/geometry";
@@ -149,12 +151,25 @@ function clusterLines(texts: TextObject[]): TextObject[][] {
  * between runs whose gap is too wide to be kerning. Where either side already
  * ends or starts with whitespace the file has said what it means, so that is
  * used as-is rather than doubled.
+ *
+ * A space drawn as its own run is the one case where the file's spelling cannot
+ * be taken literally. PDFium reads text through its text page, which hands the
+ * space character to the word before it as well, so "The" followed by a " " run
+ * reads back as "The " and " ". Joined verbatim that is two spaces for the one
+ * on the page, and since the joined string is exactly what an edit writes back,
+ * the first keystroke in the line doubled every gap in it. Every .docx and .rtf
+ * import is laid out this way, one run per word and per space. So a
+ * whitespace-only run adds nothing when the word before it already ends in the
+ * space it stands for. A second space run in a row still counts, because the
+ * word only ever claims one.
  */
 function joinRuns(runs: TextObject[]): string {
   let out = runs[0].text;
   for (let i = 1; i < runs.length; i++) {
     const prev = runs[i - 1];
     const next = runs[i];
+    const blank = (t: string) => !t.trim();
+    if (blank(next.text) && !blank(prev.text) && /\s$/.test(prev.text)) continue;
     const wide = gapBetween(prev, next) >= SPACE_EM * Math.max(prev.fontSize, 1);
     const spelled = /\s$/.test(prev.text) || /^\s/.test(next.text);
     out += wide && !spelled ? ` ${next.text}` : next.text;
