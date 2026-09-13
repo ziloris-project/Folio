@@ -70,8 +70,11 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
   leaves open. A PDF stores no space character between runs it positioned
   rather than spaced, so the gap is the only evidence, and a file with broken
   glyph spacing metrics can have a space invented where none belongs or omitted
-  where one does. Run text itself is always preserved verbatim, so only the
-  separators between runs are ever at stake. Refining that call is issue #1.
+  where one does. Run text itself is preserved verbatim, so only the
+  separators between runs are ever at stake. The one exception is a space drawn
+  as its own run (the layout .docx / .rtf import produces): PDFium also reports
+  that space as part of the word before it, so it is counted once, not twice.
+  Refining that call is issue #1.
 - Retyping a line that mixes styles adopts the style the line opens with, since
   the whole line is rewritten through its first run.
 - Re-wrap shifts the rest of the text column when a paragraph changes height,
@@ -79,6 +82,15 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
   pushed off it rather than onto the next page.
 - Re-wrap needs a paragraph to measure a column from, so a line standing on its
   own is never re-wrapped: nothing on the page says how wide it may become.
+- In a two-line paragraph, lengthening the first line grows it instead of
+  re-wrapping it. Its only neighbour is the closing line, which is usually
+  shorter than the column, and wrapping to that would squeeze the paragraph.
+  Shortening it, or editing the closing line, still re-wraps.
+- Paragraphs are inferred from even line spacing, so blocks set less than about
+  1.3x their own leading apart can still be read as one paragraph.
+- In a paragraph that mixes fonts (after "Replace font" on one line), re-wrap
+  measures each line in its own font, but text that moves between lines takes
+  on the font of the line it lands on.
 - A hyphen at a line break survives re-wrapping. Telling a split word
   ("environ-" / "ment") from a real compound ("part-" / "time") needs a
   dictionary, so the hyphen is left visible rather than guessed away.
