@@ -508,6 +508,14 @@ export const useEditor = create<EditorState>((set, get) => ({
   // in the file, and colouring or moving only the first letter of it is the
   // whole class of bug this fans out to avoid.
   editObjectText: async (pageId, index, text, opts) => {
+    // PDFium traps on an empty string instead of rejecting it (see
+    // setObjectText), and a trap takes the whole wasm instance down. Clearing
+    // the field on the way to retyping it passes through "" routinely, and
+    // with text applied every frame that state reaches the store. Whitespace
+    // alone is refused too, because a re-wrap breaks a bare line break into
+    // empty lines and writes those. The line keeps the text last applied to
+    // it, and the next keystroke carries on from there.
+    if (!text.trim()) return index;
     const parts = partsOf(get, pageId, index);
     // Reflow is deliberately not run on every keystroke, even though it could
     // be. Pouring text through the paragraph as you type moves it between lines
