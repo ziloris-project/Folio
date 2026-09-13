@@ -4,10 +4,12 @@ import {
   appendText,
   commit,
   expectExportLoads,
+  fontSelect,
   inspector,
   leaveField,
   openFile,
   readLayout,
+  rects,
   replaceFont,
   selectLine,
   textsOf,
@@ -171,5 +173,20 @@ test("re-wraps a font-replaced line without overrunning the column", async ({ pa
   for (const l of paragraph) expect(l.width).toBeLessThanOrEqual(column + 2);
   expect(textsOf(lines)).toContain(ORIGINAL[3]);
   await expectExportLoads(page);
+  expect(traps).toEqual([]);
+});
+
+test("the font dropdown does not carry one line's choice onto the next", async ({ page }) => {
+  const traps = await openFixture(page);
+  await selectLine(page, "INV-4471");
+  await replaceFont(page, "Courier");
+  await leaveField(page);
+
+  await rects(page).first().click();
+  await page.waitForTimeout(400);
+  // The dropdown is an action, not a reading of the line's font. Left showing
+  // "Courier" here it names a font this line does not use, and picking Courier
+  // again fires no change event, so the replacement silently does nothing.
+  await expect(fontSelect(page)).toHaveValue("");
   expect(traps).toEqual([]);
 });
