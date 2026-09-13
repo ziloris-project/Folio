@@ -116,13 +116,17 @@ interface EditorState {
   // ----- existing-content object ops -----
   refreshObjects: (pageId: string) => Promise<void>;
   selectObject: (sel: { pageId: string; index: number } | null) => void;
-  /** `reflow` re-wraps the surrounding paragraph; pass it on commit, not per keystroke. */
+  /**
+   * `reflow` re-wraps the surrounding paragraph; pass it on commit, not per
+   * keystroke. Resolves to the index the edited line lives at afterwards, which
+   * moves when the line's other runs are removed.
+   */
   editObjectText: (
     pageId: string,
     index: number,
     text: string,
     opts?: { reflow?: boolean },
-  ) => Promise<void>;
+  ) => Promise<number>;
   setObjectColor: (pageId: string, index: number, color: RGBA, which: "fill" | "stroke") => Promise<void>;
   setObjectStrokeWidthValue: (pageId: string, index: number, width: number) => Promise<void>;
   setObjectFontSizeValue: (pageId: string, index: number, current: number, next: number) => Promise<void>;
@@ -528,6 +532,7 @@ export const useEditor = create<EditorState>((set, get) => ({
         "error",
       );
     }
+    return index - removed.filter((p) => p < index).length;
   },
 
   setObjectColor: async (pageId, index, color, which) => {
