@@ -85,6 +85,11 @@ export function Inspector() {
   // with no edit behind it; committing that would rewrite (and re-wrap) a
   // paragraph nobody touched. Only a real keystroke puts something here.
   const pending = useRef<string | null>(null);
+  // The typing session: which object live applies write to (see pump), and
+  // what was last sent to it.
+  const session = useRef<{ pageId: string; index: number; applied: string | null } | null>(null);
+  const inflight = useRef<Promise<void> | null>(null);
+  const frame = useRef<number | null>(null);
   if (prevKey !== objKey) {
     setPrevKey(objKey);
     setText(obj?.type === "text" ? obj.text : "");
@@ -119,18 +124,43 @@ export function Inspector() {
     // A genuinely new selection, so any uncommitted edit belonged to the object
     // that just went away. Blur has already had its chance to commit it.
     pending.current = null;
+    session.current = null;
     if (!isText || !ta) return;
     ta.focus();
     const end = ta.value.length;
     ta.setSelectionRange(end, end);
   }, [objKey, isText]);
 
-  // Debounce live text apply - each apply regenerates the page, so we wait for a
-  // pause in typing rather than firing on every keystroke.
-  const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const applyTextDebounced = (pageId: string, index: number, value: string) => {
-    if (applyTimer.current) clearTimeout(applyTimer.current);
-    applyTimer.current = setTimeout(() => void editObjectText(pageId, index, value), 400);
+  // Live apply. Typed text reaches the page on the next animation frame rather
+  // than after a pause in typing: an apply no longer saves the document, takes
+  // its own undo step or re-lists the page (see the store), so it is cheap
+  // enough to run while the user types.
+  //
+  // At most one apply runs at a time. Keystrokes that land while one is in
+  // flight are not queued one by one; when it finishes, the next apply takes
+  // whatever the field holds by then, so a slow page coalesces typing instead
+  // of falling further behind it.
+  //
+  // The session remembers which object it writes to, and follows it. The first
+  // apply to a line made of several runs collapses them into one and renumbers
+  // the page, and a keystroke already on its way still carries the old index,
+  // which now names a different object. Serializing the applies and taking
+  // each index from the one before is what keeps every write on this line.
+  const pump = () => {
+    frame.current = null;
+    const s = session.current;
+    const value = pending.current;
+    if (inflight.current || !s || value === null || value === s.applied) return;
+    s.applied = value;
+    inflight.current = editObjectText(s.pageId, s.index, value).then((index) => {
+      s.index = index;
+      inflight.current = null;
+      pump();
+    });
+  };
+
+  const scheduleApply = () => {
+    if (frame.current === null) frame.current = requestAnimationFrame(pump);
   };
 
   return (
@@ -163,7 +193,12 @@ export function Inspector() {
                   onChange={(e) => {
                     setText(e.target.value);
                     pending.current = e.target.value;
-                    applyTextDebounced(selectedObject.pageId, obj.index, e.target.value);
+                    session.current ??= {
+                      pageId: selectedObject.pageId,
+                      index: obj.index,
+                      applied: null,
+                    };
+                    scheduleApply();
                   }}
                   onKeyDown={(e) => {
                     // Esc leaves the field (Enter still inserts a newline);
@@ -177,21 +212,28 @@ export function Inspector() {
                     // Committing is where the paragraph re-wraps. Doing it on
                     // every keystroke would move text between lines under the
                     // caret, so while typing the line just grows.
-                    if (applyTimer.current) clearTimeout(applyTimer.current);
+                    if (frame.current !== null) cancelAnimationFrame(frame.current);
+                    frame.current = null;
                     const edit = pending.current;
+                    const s = session.current;
                     // Nothing was typed, so there is nothing to commit. Blur
                     // fires just from moving between lines, and committing on
                     // that would rewrite and re-wrap a paragraph nobody touched.
-                    if (edit === null) return;
+                    if (edit === null || !s) return;
                     pending.current = null;
-                    void editObjectText(selectedObject.pageId, obj.index, edit, {
-                      reflow: true,
-                    });
+                    session.current = null;
+                    // Behind any apply still running, so the commit reads the
+                    // index that apply leaves the line at.
+                    void (inflight.current ?? Promise.resolve()).then(() =>
+                      editObjectText(s.pageId, s.index, edit, { reflow: true }),
+                    );
                   }}
                   rows={3}
                   className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
                 />
-                <span className="text-[11px] text-muted">Applies as you type.</span>
+                <span className="text-[11px] text-muted">
+                  Updates the page as you type. The paragraph re-wraps when you leave the field.
+                </span>
               </div>
               <CommitSlider
                 label="Size" min={4} max={96} value={Math.round(obj.fontSize)}
