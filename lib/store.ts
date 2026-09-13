@@ -19,6 +19,7 @@ import {
   setObjectStrokeWidth,
   setObjectFontSize,
   moveObject,
+  objectBounds,
   deleteObject as deletePdfObject,
   recreateTextObject,
 } from "./pdf/pdfium/objects";
@@ -503,6 +504,18 @@ export const useEditor = create<EditorState>((set, get) => ({
       // The line's other runs are now spelled out by the one just rewritten, so
       // they have to go.
       removed = dropRuns(doc, pageIndex, parts, index);
+      // A line that was already a single run is the same object with a new
+      // string, so its cached entry can be updated in place. Re-enumerating
+      // instead reads the text of every run on the page: 70-300 ms per apply
+      // on a page of 2,700 per-glyph runs, the largest cost left once saving
+      // was deferred. The first apply to a multi-run line removes runs and
+      // renumbers the page, so that one still takes the full re-list, and so
+      // does the commit, whose re-wrap can touch any line in the paragraph.
+      if (kind === "live" && !removed.length) {
+        const bbox = objectBounds(doc, pageIndex, index);
+        return (objects) =>
+          objects.map((o) => (o.index === index && o.type === "text" ? { ...o, text, bbox } : o));
+      }
     }, { typing: kind });
 
     // Removing a run renumbers every index above it, so a selection sitting
@@ -967,12 +980,16 @@ function reindexSelection(
  * typing, is drawn like any other edit but not serialized (see `unsaved`), and
  * joins the open typing session's checkpoint instead of taking its own; the
  * "commit" that ends the session joins it too (see `typing`).
+ *
+ * `mutate` may return a function that updates the page's cached object list,
+ * for an edit that knows exactly which entry it changed; the page is then not
+ * re-enumerated.
  */
 async function mutateObject(
   get: () => EditorState,
   set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
   pageId: string,
-  mutate: (doc: PdfiumDoc, pageIndex: number) => void,
+  mutate: (doc: PdfiumDoc, pageIndex: number) => void | ((objects: PageObject[]) => PageObject[]),
   opts?: { typing?: "live" | "commit" },
 ) {
   const page = get().pages.find((p) => p.id === pageId);
@@ -986,7 +1003,7 @@ async function mutateObject(
   // edit continues a typing session that already did.
   if (!(typing && opts?.typing)) get().beginHistory();
   typing = live;
-  mutate(doc, page.sourcePageIndex);
+  const patch = mutate(doc, page.sourcePageIndex);
   doc.regenerate(page.sourcePageIndex);
   if (live) unsaved.set(sourceId, doc);
   else unsaved.delete(sourceId); // the save below covers it
@@ -996,6 +1013,10 @@ async function mutateObject(
     ),
     // Record the new doc bytes as a fresh ref so undo can detect the change.
     ...(live ? {} : { sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() } }),
+    // In the same update as the version bump, so the page renders once.
+    ...(patch && s.pageObjects[pageId]
+      ? { pageObjects: { ...s.pageObjects, [pageId]: patch(s.pageObjects[pageId]) } }
+      : {}),
   }));
-  await get().refreshObjects(pageId);
+  if (!patch || !get().pageObjects[pageId]) await get().refreshObjects(pageId);
 }
