@@ -148,6 +148,36 @@ test("one undo takes back a whole typing session", async ({ page }) => {
   expect(traps).toEqual([]);
 });
 
+test("typing again straight after leaving the field is its own undo step", async ({ page }) => {
+  const traps = await open(page, await perGlyphPdf());
+  await editLine(page, 0);
+  await inspector(page).pressSequentially(" alpha", { delay: 30 });
+  // Leave and come straight back while the first session's commit may still
+  // be re-wrapping the paragraph. The second session must wait for it, both
+  // to write to the right object and to get an undo step of its own.
+  await page.keyboard.press("Escape");
+  await inspector(page).click();
+  await inspector(page).press("End");
+  await inspector(page).pressSequentially(" bravo", { delay: 30 });
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(2500);
+  const both = (await readLines(page)).join(" ");
+  expect(both).toContain("alpha");
+  expect(both).toContain("bravo");
+
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(2000);
+  const one = (await readLines(page)).join(" ");
+  expect(one).toContain("alpha");
+  expect(one).not.toContain("bravo");
+
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(2000);
+  expect(await readLines(page)).toEqual(ORIGINAL);
+  expect(traps).toEqual([]);
+});
+
 test("export includes text typed a moment ago, without leaving the field", async ({ page }) => {
   const traps = await open(page, await perGlyphPdf());
   await editLine(page, 7);
