@@ -194,6 +194,14 @@ export function setObjectText(doc: PdfiumDoc, pageIndex: number, objIndex: numbe
   }
 }
 
+/**
+ * An object's current bounding box, in PDF user space. Cheap on its own, unlike
+ * `listPageObjects`, which reads the text of every run on the page.
+ */
+export function objectBounds(doc: PdfiumDoc, pageIndex: number, objIndex: number) {
+  return readBounds(doc.I, obj(doc, pageIndex, objIndex));
+}
+
 export function setObjectFill(doc: PdfiumDoc, pageIndex: number, objIndex: number, c: RGBA) {
   doc.I.FPDFPageObj_SetFillColor(obj(doc, pageIndex, objIndex), c.r, c.g, c.b, c.a);
 }
