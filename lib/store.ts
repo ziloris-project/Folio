@@ -1035,7 +1035,11 @@ async function mutateObject(
   if (!(typing && opts?.typing)) get().beginHistory();
   typing = live;
   const patch = mutate(doc, page.sourcePageIndex);
-  doc.regenerate(page.sourcePageIndex);
+  // A live apply only has to reach the screen, which draws from PDFium's
+  // in-memory objects; the content stream is rewritten when the document is
+  // next saved (see PdfiumDoc.touch).
+  if (live) doc.touch(page.sourcePageIndex);
+  else doc.regenerate(page.sourcePageIndex);
   if (live) unsaved.set(sourceId, doc);
   else unsaved.delete(sourceId); // the save below covers it
   set((s) => ({

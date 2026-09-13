@@ -6,7 +6,8 @@
  * bottom-left origin); the UI layer converts to/from the top-left overlay space.
  *
  * After any mutation the caller must call `doc.regenerate(pageIndex)` to rewrite
- * the page content stream, then re-render.
+ * the page content stream (or `doc.touch(pageIndex)` to defer that to the next
+ * save), then re-render.
  */
 import type { PdfiumDoc } from "./doc";
 import {
