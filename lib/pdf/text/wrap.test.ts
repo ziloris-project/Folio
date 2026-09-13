@@ -52,6 +52,23 @@ describe("wrapText", () => {
     }
   });
 
+  it("fills each line against its own measurer", () => {
+    // Line 0 is set in a face half as wide as the lines after it, so it holds
+    // twice the text; the lines below must be filled in their own, wider face.
+    const narrow = (t: string) => t.length / 2;
+    const perLine = (i: number) => (i === 0 ? narrow : mono);
+    expect(wrapText("aa bb cc dd ee ff", 5, mono, perLine)).toEqual(["aa bb cc", "dd ee", "ff"]);
+  });
+
+  it("numbers lines across explicit newlines when picking a measurer", () => {
+    const seen: number[] = [];
+    wrapText("aaa bbb\nccc", 3, mono, (i) => {
+      seen.push(i);
+      return mono;
+    });
+    expect(Math.max(...seen)).toBe(2);
+  });
+
   it("survives a column too narrow for a single character", () => {
     // Nothing fits, but it must still terminate and still emit every character.
     expect(wrapText("abc", 0, mono)).toEqual(["a", "b", "c"]);

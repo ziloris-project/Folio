@@ -703,9 +703,16 @@ interface ReflowPlan {
  * Work out how the edited line's paragraph should be laid out, or null if there
  * is nothing to reflow into.
  *
- * Measurement is calibrated against the edited line itself: we know its text
- * and the width that text really occupies on the page, which corrects for the
- * embedded font we have no metrics for. See pdf/text/measure.ts.
+ * Measurement is calibrated against each line itself: we know its text and the
+ * width that text really occupies on the page, which corrects for the embedded
+ * font we have no metrics for. See pdf/text/measure.ts.
+ *
+ * Every output line is measured in the font of the object it will be written
+ * into, not in the edited line's font. A re-wrap rewrites each line of the tail
+ * in place, so text moved onto the next line is drawn in that line's font. After
+ * "Replace font" on one line the paragraph mixes faces, and measuring everything
+ * in the replacement (Times is much narrower than Helvetica) let the lines below
+ * overrun the column by the difference.
  */
 async function planReflow(
   get: () => EditorState,
@@ -719,15 +726,23 @@ async function planReflow(
   const paragraph = paragraphAt(objects, index);
   if (!paragraph) return null;
 
-  const target = paragraph.lines[paragraph.target];
   const fonts = await loadMetrics();
-  const measure = calibratedMeasure(fonts, {
-    fontName: target.fontName,
-    fontSize: target.fontSize,
-    sampleText: target.text,
-    sampleWidth: spanOf(target),
-  });
-  const lines = reflowParagraph(paragraph, text, measure);
+  // One measurer per line of the tail, in order. Lines added past its end copy
+  // the paragraph's last line (appendLineLike), so they share its measurer.
+  const measures = paragraph.lines.slice(paragraph.target).map((line) =>
+    calibratedMeasure(fonts, {
+      fontName: line.fontName,
+      fontSize: line.fontSize,
+      sampleText: line.text,
+      sampleWidth: spanOf(line),
+    }),
+  );
+  const lines = reflowParagraph(
+    paragraph,
+    text,
+    measures[0],
+    (i) => measures[Math.min(i, measures.length - 1)],
+  );
 
   // If the re-wrap lands on exactly what is already there, do not touch the
   // page. Rewriting a paragraph to the state it is already in still rebuilds

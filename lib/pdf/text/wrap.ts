@@ -19,18 +19,36 @@ import type { Measure } from "./measure";
  *
  * Returns at least one line, so an empty string round-trips as [""] rather than
  * vanishing.
+ *
+ * `measureLine`, when given, supplies the measurer for each output line by its
+ * position. Lines that will be drawn in different fonts take up different
+ * widths for the same text, and a line has to be filled against the font it
+ * will actually be set in or it overruns the column (see planReflow).
  */
-export function wrapText(text: string, maxWidth: number, measure: Measure): string[] {
-  return text.split("\n").flatMap((line) => wrapLine(line, maxWidth, measure));
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  measure: Measure,
+  measureLine?: (line: number) => Measure,
+): string[] {
+  const at = measureLine ?? (() => measure);
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    const base = out.length;
+    out.push(...wrapLine(line, maxWidth, (n) => at(base + n)));
+  }
+  return out;
 }
 
-function wrapLine(text: string, maxWidth: number, measure: Measure): string[] {
+function wrapLine(text: string, maxWidth: number, measureAt: (line: number) => Measure): string[] {
   // Word plus the whitespace that trailed it, so a break can drop the space.
   const chunks = text.match(/\S+\s*/g);
   if (!chunks) return [text];
 
   const lines: string[] = [];
   let line = "";
+  // Always the measurer for the line currently being filled.
+  const measure: Measure = (t) => measureAt(lines.length)(t);
   for (const chunk of chunks) {
     const word = chunk.replace(/\s+$/, "");
     if (line && measure(line + word) > maxWidth) {

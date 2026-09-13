@@ -213,11 +213,12 @@ export function reflowParagraph(
   paragraph: Paragraph,
   replacement: string,
   measure: Measure,
+  measureLine?: (line: number) => Measure,
 ): string[] {
   const tail = paragraph.lines.slice(paragraph.target);
   const text = tail
     .map((line, i) => (i === 0 ? replacement : line.text))
     .map((t) => t.replace(/\s+$/, ""))
     .join(" ");
-  return wrapText(text, paragraph.columnWidth, measure);
+  return wrapText(text, paragraph.columnWidth, measure, measureLine);
 }
