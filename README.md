@@ -35,6 +35,7 @@ Most "free" online PDF editors upload your file to a server you don't control. F
 | Available | Page management - reorder (drag), rotate, duplicate, delete, insert blank, extract a page as its own PDF |
 | Available | Thumbnail rail with active-page sync (scroll ↔ selection) and click-to-jump |
 | Available | Edit existing content - select, move, retype, recolor, resize and replace fonts on the PDF's own text / image objects |
+| Available | Upload your own font (`.ttf`, or `.otf` with TrueType outlines) and apply it to existing text - loaded and embedded in the browser, reused for other lines in the same document |
 | Available | Line-level text selection - PDFs that store text one glyph at a time are rebuilt into lines, so a click selects the whole line, not a letter |
 | Available | Paragraph re-wrap - lengthen or shorten a line and the surrounding paragraph reflows instead of overrunning |
 | Available | Multi-line text editing in the Inspector, drawn on the page as you type; one typing session is one undo step |

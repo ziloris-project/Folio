@@ -25,6 +25,8 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 - Re-wrap the surrounding paragraph when an edited line changes length, so text
   flows between lines instead of running off the page (applied on commit)
 - Recreate existing text runs in a standard-14 font (honors explicit line breaks)
+- Recreate existing text runs in an uploaded TrueType font, embedded in the
+  exported PDF, and offered for every other line in the same document
 - Annotations: text (bold), ink, highlight, rectangle, ellipse, line, arrow,
   image, and draw-to-sign signatures; eraser and Delete/Backspace
 - Undo / redo with snapshot history
@@ -67,8 +69,25 @@ in-progress items live as plain constants in [lib/config.ts](lib/config.ts)
 
 ## Known limitations (today)
 
-- Existing-text edits render reliably only through the 9 standard-14 fonts;
-  custom / embedded / non-Latin glyph coverage is limited.
+- Existing-text edits render reliably through the 9 standard-14 fonts or a font
+  you upload. A file's own embedded fonts are often subsets and can still
+  refuse new characters. Standard-14 fonts cover Latin text only; an uploaded
+  font covers exactly the characters it contains, nothing more.
+- Uploaded fonts:
+  - Only TrueType outlines are accepted (`.ttf`, or an `.otf` that uses
+    TrueType outlines). CFF-based OpenType, font collections (`.ttc`) and WOFF
+    are rejected, because PDFium can only embed a font as a TrueType stream.
+  - The whole font file is embedded (compressed, not subset), so a large font
+    makes the exported PDF correspondingly larger.
+  - Uploads are kept in memory for the open document only. They are not saved
+    anywhere, and are gone after a reload or when another document is opened.
+  - Applying the font again after an undo or redo embeds a second copy of it,
+    since the reloaded document has no record of the first.
+  - Characters are placed one glyph per character, with no shaping, so scripts
+    that need ligatures or contextual forms (for example Arabic or Devanagari)
+    will not render correctly.
+  - Embedding a font in a PDF you share is subject to that font's licence.
+    Checking that the licence allows it is up to you.
 - Line grouping is geometric, so it inherits the ambiguity the PDF format
   leaves open. A PDF stores no space character between runs it positioned
   rather than spaced, so the gap is the only evidence, and a file with broken
