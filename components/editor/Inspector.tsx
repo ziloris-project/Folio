@@ -204,8 +204,13 @@ export function Inspector() {
               />
               <label className="flex items-center gap-2 text-xs text-muted">
                 <span className="w-14 shrink-0">Font</span>
+                {/* Controlled and pinned to the placeholder: picking a font is an
+                    action, not a setting the field keeps. Left uncontrolled, the
+                    same element is reused for every line, so it went on showing
+                    the last font chosen for a line that does not use it, and
+                    choosing that font again fired no change event at all. */}
                 <select
-                  defaultValue=""
+                  value=""
                   onChange={(e) => {
                     if (e.target.value) void setObjectFontName(selectedObject.pageId, obj.index, e.target.value);
                   }}
