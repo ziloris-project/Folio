@@ -61,6 +61,9 @@ function ColorRow({ label, color, onChange }: { label: string; color: RGBA; onCh
 
 const ICON = { text: Type, path: Square, image: ImageIcon, other: Shapes } as const;
 
+/** Font picker value that opens the file dialog instead of naming a font. */
+const UPLOAD_FONT = "__upload__";
+
 export function Inspector() {
   const selectedObject = useEditor((s) => s.selectedObject);
   const pageObjects = useEditor((s) => s.pageObjects);
@@ -69,6 +72,9 @@ export function Inspector() {
   const setObjectStrokeWidthValue = useEditor((s) => s.setObjectStrokeWidthValue);
   const setObjectFontSizeValue = useEditor((s) => s.setObjectFontSizeValue);
   const setObjectFontName = useEditor((s) => s.setObjectFontName);
+  const uploadedFonts = useEditor((s) => s.uploadedFonts);
+  const uploadFont = useEditor((s) => s.uploadFont);
+  const fontFileRef = useRef<HTMLInputElement>(null);
   const deleteObject = useEditor((s) => s.deleteObject);
 
   const obj: PageObject | undefined = selectedObject
@@ -287,7 +293,15 @@ export function Inspector() {
                 <select
                   value=""
                   onChange={(e) => {
-                    if (e.target.value) void setObjectFontName(selectedObject.pageId, obj.index, e.target.value);
+                    const value = e.target.value;
+                    if (value === UPLOAD_FONT) {
+                      // Not a font, an action: put the picker back and open the
+                      // file dialog. The upload applies to this line once chosen.
+                      e.target.value = "";
+                      fontFileRef.current?.click();
+                      return;
+                    }
+                    if (value) void setObjectFontName(selectedObject.pageId, obj.index, value);
                   }}
                   className="flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-foreground outline-none focus:border-accent"
                 >
@@ -297,7 +311,28 @@ export function Inspector() {
                   {STANDARD_FONTS.map((fn) => (
                     <option key={fn} value={fn}>{fn}</option>
                   ))}
+                  {uploadedFonts.length > 0 && (
+                    <optgroup label="Uploaded">
+                      {uploadedFonts.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value={UPLOAD_FONT}>Upload font…</option>
                 </select>
+                <input
+                  ref={fontFileRef}
+                  type="file"
+                  accept=".ttf,.otf"
+                  aria-label="Upload font file"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    // Clear it so picking the same file again still fires.
+                    e.target.value = "";
+                    if (file) void uploadFont(selectedObject.pageId, obj.index, file);
+                  }}
+                />
               </label>
               <p className="text-[11px] text-muted">
                 Replacing the font guarantees typed characters render (the original may be a
