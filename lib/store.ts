@@ -145,6 +145,29 @@ interface Snapshot {
 
 const HISTORY_LIMIT = 60;
 
+/**
+ * Live PDFium documents holding edits that `sourceBytes` does not reflect yet.
+ *
+ * Serializing a document is proportional to the whole file, not to the edit:
+ * on a 16 MB, 60-page PDF it took 75-110 ms, on every debounced keystroke, to
+ * produce bytes nobody reads until the next checkpoint. Live text applies
+ * therefore leave the document here and the bytes are written once, right
+ * before something needs them (a history checkpoint, undo or redo). Export
+ * saves straight from the live document, so it never depends on this.
+ */
+const unsaved = new Map<SourceId, PdfiumDoc>();
+
+/** Write every pending document into `sourceBytes`, as fresh refs. */
+function saveUnsaved(
+  set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
+) {
+  if (!unsaved.size) return;
+  const bytes: Record<SourceId, Uint8Array> = {};
+  for (const [id, doc] of unsaved) bytes[id] = doc.save();
+  unsaved.clear();
+  set((s) => ({ sourceBytes: { ...s.sourceBytes, ...bytes } }));
+}
+
 const DEFAULT_TOOL: ToolSettings = {
   color: "#ef4444",
   strokeWidth: 3,
@@ -265,6 +288,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   reset: () => {
+    // The documents are about to be closed, and saving a closed one would
+    // read freed wasm memory.
+    unsaved.clear();
     Object.keys(get().sources).forEach(dropPdfiumDoc);
     set({
       status: "empty",
@@ -445,6 +471,9 @@ export const useEditor = create<EditorState>((set, get) => ({
 
     let rejected = false;
     let removed: number[] = [];
+    // Only the commit writes the document out; the applies before it only have
+    // to reach the screen.
+    const live = !opts?.reflow;
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
       if (plan) {
         const out = applyReflow(doc, pageIndex, plan);
@@ -464,7 +493,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       // The line's other runs are now spelled out by the one just rewritten, so
       // they have to go.
       removed = dropRuns(doc, pageIndex, parts, index);
-    });
+    }, { live });
 
     // Removing a run renumbers every index above it, so a selection sitting
     // above one of them now points at the wrong object.
@@ -559,15 +588,24 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   // ----- undo/redo -----
-  beginHistory: () =>
+  beginHistory: () => {
+    // A checkpoint compares documents by bytes ref, so it has to see the edits
+    // live applies have not written out yet, or it would record them as the
+    // state before this gesture.
+    saveUnsaved(set);
     set((s) => ({
       past: [...s.past, { pages: s.pages, sourceBytes: s.sourceBytes }].slice(-HISTORY_LIMIT),
       future: [],
-    })),
+    }));
+  },
 
   undo: async () => {
     const { past } = get();
     if (!past.length) return;
+    // Otherwise the state we step away from is recorded (for redo) without its
+    // latest edits, and applySnapshot sees unchanged bytes and skips the
+    // reload that would actually roll the document back.
+    saveUnsaved(set);
     const snap = past[past.length - 1];
     const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
     await applySnapshot(get, set, snap);
@@ -577,6 +615,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   redo: async () => {
     const { future } = get();
     if (!future.length) return;
+    saveUnsaved(set);
     const snap = future[future.length - 1];
     const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
     await applySnapshot(get, set, snap);
@@ -616,6 +655,7 @@ async function openInto(
   try {
     const source: PdfSource = { id: nanoid(), name, bytes };
     const pages = await pagesForSource(source, password);
+    unsaved.clear();
     set({
       status: "ready",
       fileName: name,
@@ -891,12 +931,18 @@ function reindexSelection(
   }
 }
 
-/** Shared object-mutation pipeline: mutate → regenerate → re-render → re-list. */
+/**
+ * Shared object-mutation pipeline: mutate → regenerate → re-render → re-list.
+ *
+ * `live` marks an apply made while the user is still typing. It is drawn like
+ * any other edit but not serialized; see `unsaved`.
+ */
 async function mutateObject(
   get: () => EditorState,
   set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
   pageId: string,
   mutate: (doc: PdfiumDoc, pageIndex: number) => void,
+  opts?: { live?: boolean },
 ) {
   const page = get().pages.find((p) => p.id === pageId);
   if (!page?.sourceId) return;
@@ -907,12 +953,14 @@ async function mutateObject(
   get().beginHistory(); // checkpoint pre-edit state (pages + current source bytes)
   mutate(doc, page.sourcePageIndex);
   doc.regenerate(page.sourcePageIndex);
+  if (opts?.live) unsaved.set(sourceId, doc);
+  else unsaved.delete(sourceId); // the save below covers it
   set((s) => ({
     pages: s.pages.map((p) =>
       p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p,
     ),
     // Record the new doc bytes as a fresh ref so undo can detect the change.
-    sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() },
+    ...(opts?.live ? {} : { sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() } }),
   }));
   await get().refreshObjects(pageId);
 }
