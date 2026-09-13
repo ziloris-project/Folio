@@ -111,6 +111,15 @@ describe("paragraphAt", () => {
     const objs = [line(0, "short", 0, 200, 40), line(1, "much longer line", 0, 188, 90)];
     expect(paragraphAt(objs, 0)?.columnWidth).toBe(90);
   });
+
+  it("does not narrow a two-line paragraph to its closing line", () => {
+    // The closing line stops where the text ran out. With no interior line to
+    // go on, the edited first line is the only evidence the column was wider.
+    const objs = [line(0, "a long first line", 0, 200, 90), line(1, "end", 0, 188, 20)];
+    expect(paragraphAt(objs, 0)?.columnWidth).toBe(90);
+    // Editing the closing line still measures against the first.
+    expect(paragraphAt(objs, 1)?.columnWidth).toBe(90);
+  });
 });
 
 describe("reflowParagraph", () => {
