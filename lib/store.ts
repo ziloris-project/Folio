@@ -157,6 +157,15 @@ const HISTORY_LIMIT = 60;
  */
 const unsaved = new Map<SourceId, PdfiumDoc>();
 
+/**
+ * Whether a typing session is open: live applies have run and their commit has
+ * not. The first apply of a session takes the checkpoint and every later apply,
+ * plus the commit that ends it, shares it, so undo takes back what was typed
+ * rather than one debounce interval of it. Any other checkpoint ends the
+ * session, which keeps an unrelated edit from being folded into it.
+ */
+let typing = false;
+
 /** Write every pending document into `sourceBytes`, as fresh refs. */
 function saveUnsaved(
   set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
@@ -291,6 +300,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // The documents are about to be closed, and saving a closed one would
     // read freed wasm memory.
     unsaved.clear();
+    typing = false;
     Object.keys(get().sources).forEach(dropPdfiumDoc);
     set({
       status: "empty",
@@ -471,9 +481,9 @@ export const useEditor = create<EditorState>((set, get) => ({
 
     let rejected = false;
     let removed: number[] = [];
-    // Only the commit writes the document out; the applies before it only have
-    // to reach the screen.
-    const live = !opts?.reflow;
+    // The commit (blur) ends a typing session and writes the document out. The
+    // applies before it only have to reach the screen, and share one undo step.
+    const kind = opts?.reflow ? "commit" : "live";
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
       if (plan) {
         const out = applyReflow(doc, pageIndex, plan);
@@ -493,7 +503,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       // The line's other runs are now spelled out by the one just rewritten, so
       // they have to go.
       removed = dropRuns(doc, pageIndex, parts, index);
-    }, { live });
+    }, { typing: kind });
 
     // Removing a run renumbers every index above it, so a selection sitting
     // above one of them now points at the wrong object.
@@ -593,6 +603,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // live applies have not written out yet, or it would record them as the
     // state before this gesture.
     saveUnsaved(set);
+    typing = false;
     set((s) => ({
       past: [...s.past, { pages: s.pages, sourceBytes: s.sourceBytes }].slice(-HISTORY_LIMIT),
       future: [],
@@ -606,6 +617,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // latest edits, and applySnapshot sees unchanged bytes and skips the
     // reload that would actually roll the document back.
     saveUnsaved(set);
+    typing = false;
     const snap = past[past.length - 1];
     const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
     await applySnapshot(get, set, snap);
@@ -616,6 +628,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { future } = get();
     if (!future.length) return;
     saveUnsaved(set);
+    typing = false;
     const snap = future[future.length - 1];
     const current: Snapshot = { pages: get().pages, sourceBytes: get().sourceBytes };
     await applySnapshot(get, set, snap);
@@ -656,6 +669,7 @@ async function openInto(
     const source: PdfSource = { id: nanoid(), name, bytes };
     const pages = await pagesForSource(source, password);
     unsaved.clear();
+    typing = false;
     set({
       status: "ready",
       fileName: name,
@@ -934,15 +948,17 @@ function reindexSelection(
 /**
  * Shared object-mutation pipeline: mutate → regenerate → re-render → re-list.
  *
- * `live` marks an apply made while the user is still typing. It is drawn like
- * any other edit but not serialized; see `unsaved`.
+ * `typing` marks text edits. A "live" apply, made while the user is still
+ * typing, is drawn like any other edit but not serialized (see `unsaved`), and
+ * joins the open typing session's checkpoint instead of taking its own; the
+ * "commit" that ends the session joins it too (see `typing`).
  */
 async function mutateObject(
   get: () => EditorState,
   set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
   pageId: string,
   mutate: (doc: PdfiumDoc, pageIndex: number) => void,
-  opts?: { live?: boolean },
+  opts?: { typing?: "live" | "commit" },
 ) {
   const page = get().pages.find((p) => p.id === pageId);
   if (!page?.sourceId) return;
@@ -950,17 +966,21 @@ async function mutateObject(
   const docP = getPdfiumDoc(sourceId);
   if (!docP) return;
   const doc = await docP;
-  get().beginHistory(); // checkpoint pre-edit state (pages + current source bytes)
+  const live = opts?.typing === "live";
+  // Checkpoint the pre-edit state (pages + current source bytes), unless this
+  // edit continues a typing session that already did.
+  if (!(typing && opts?.typing)) get().beginHistory();
+  typing = live;
   mutate(doc, page.sourcePageIndex);
   doc.regenerate(page.sourcePageIndex);
-  if (opts?.live) unsaved.set(sourceId, doc);
+  if (live) unsaved.set(sourceId, doc);
   else unsaved.delete(sourceId); // the save below covers it
   set((s) => ({
     pages: s.pages.map((p) =>
       p.id === pageId ? { ...p, editVersion: p.editVersion + 1 } : p,
     ),
     // Record the new doc bytes as a fresh ref so undo can detect the change.
-    ...(opts?.live ? {} : { sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() } }),
+    ...(live ? {} : { sourceBytes: { ...s.sourceBytes, [sourceId]: doc.save() } }),
   }));
   await get().refreshObjects(pageId);
 }
