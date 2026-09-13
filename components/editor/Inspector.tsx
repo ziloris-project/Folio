@@ -146,21 +146,42 @@ export function Inspector() {
   // the page, and a keystroke already on its way still carries the old index,
   // which now names a different object. Serializing the applies and taking
   // each index from the one before is what keeps every write on this line.
+  //
+  // The blur commit goes through the same queue. A session started while the
+  // previous one's commit is still re-wrapping would otherwise write first,
+  // take the commit's place in the undo history, and aim at an index the
+  // commit is about to renumber.
+  const enqueue = (work: () => Promise<void>) => {
+    const next: Promise<void> = (inflight.current ?? Promise.resolve())
+      .then(work)
+      // Rethrown outside the chain, so a failure still surfaces as an uncaught
+      // error (a PDFium trap must stay visible) without wedging the queue.
+      .catch((e) => queueMicrotask(() => { throw e; }))
+      .then(() => {
+        if (inflight.current !== next) return; // whatever queued behind this runs next
+        inflight.current = null;
+        // Called before this link settles, so an export waiting on text edits
+        // also waits for the keystrokes that arrived meanwhile.
+        pump();
+      });
+    inflight.current = trackTextEdit(next);
+  };
+
   const pump = () => {
     frame.current = null;
     const s = session.current;
     const value = pending.current;
     if (inflight.current || !s || value === null || value === s.applied) return;
+    const first = s.applied === null;
     s.applied = value;
-    inflight.current = trackTextEdit(
-      editObjectText(s.pageId, s.index, value).then((index) => {
-        s.index = index;
-        inflight.current = null;
-        // Registered before this apply counts as finished, so an export waiting
-        // on text edits also waits for the keystrokes that arrived meanwhile.
-        pump();
-      }),
-    );
+    enqueue(async () => {
+      // The index was read when the first key went down, possibly while an
+      // earlier commit was still renumbering the page. The store keeps the
+      // selection pointing at the same line through that, so start from it.
+      const sel = useEditor.getState().selectedObject;
+      if (first && sel?.pageId === s.pageId) s.index = sel.index;
+      s.index = await editObjectText(s.pageId, s.index, value);
+    });
   };
 
   const scheduleApply = () => {
@@ -236,11 +257,9 @@ export function Inspector() {
                     session.current = null;
                     // Behind any apply still running, so the commit reads the
                     // index that apply leaves the line at.
-                    void trackTextEdit(
-                      (inflight.current ?? Promise.resolve()).then(() =>
-                        editObjectText(s.pageId, s.index, edit, { reflow: true }),
-                      ),
-                    );
+                    enqueue(async () => {
+                      await editObjectText(s.pageId, s.index, edit, { reflow: true });
+                    });
                   }}
                   rows={3}
                   className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
