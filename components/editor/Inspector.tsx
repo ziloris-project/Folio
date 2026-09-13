@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
-import { useEditor } from "@/lib/store";
+import { onFlushTextEdits, trackTextEdit, useEditor } from "@/lib/store";
 import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
 
 function toHex({ r, g, b }: RGBA) {
@@ -152,16 +152,28 @@ export function Inspector() {
     const value = pending.current;
     if (inflight.current || !s || value === null || value === s.applied) return;
     s.applied = value;
-    inflight.current = editObjectText(s.pageId, s.index, value).then((index) => {
-      s.index = index;
-      inflight.current = null;
-      pump();
-    });
+    inflight.current = trackTextEdit(
+      editObjectText(s.pageId, s.index, value).then((index) => {
+        s.index = index;
+        inflight.current = null;
+        // Registered before this apply counts as finished, so an export waiting
+        // on text edits also waits for the keystrokes that arrived meanwhile.
+        pump();
+      }),
+    );
   };
 
   const scheduleApply = () => {
     if (frame.current === null) frame.current = requestAnimationFrame(pump);
   };
+
+  // Export reads the live document, so whatever sits in the field has to be on
+  // it first, even though the field was never blurred.
+  const flush = useEffectEvent(() => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    pump();
+  });
+  useEffect(() => onFlushTextEdits(() => flush()), []);
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-panel">
@@ -224,8 +236,10 @@ export function Inspector() {
                     session.current = null;
                     // Behind any apply still running, so the commit reads the
                     // index that apply leaves the line at.
-                    void (inflight.current ?? Promise.resolve()).then(() =>
-                      editObjectText(s.pageId, s.index, edit, { reflow: true }),
+                    void trackTextEdit(
+                      (inflight.current ?? Promise.resolve()).then(() =>
+                        editObjectText(s.pageId, s.index, edit, { reflow: true }),
+                      ),
                     );
                   }}
                   rows={3}

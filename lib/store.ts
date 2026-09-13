@@ -171,6 +171,39 @@ const unsaved = new Map<SourceId, PdfiumDoc>();
  */
 let typing = false;
 
+/**
+ * Text edits that have started (or are queued behind one that has) and not
+ * finished, plus callbacks that push text still waiting in an editor onto the
+ * document. Typed text is applied a frame or more after the keystroke, so
+ * anything that reads the live document, export in particular, has to wait
+ * for both before it can trust what it reads. See settleTextEdits.
+ */
+const textWork = new Set<Promise<unknown>>();
+const textFlushers = new Set<() => void>();
+
+/** Count `work` as an in-progress text edit until it settles. */
+export function trackTextEdit<T>(work: Promise<T>): Promise<T> {
+  textWork.add(work);
+  const done = () => void textWork.delete(work);
+  work.then(done, done);
+  return work;
+}
+
+/** Register a callback that applies an editor's not-yet-applied text now. */
+export function onFlushTextEdits(flush: () => void): () => void {
+  textFlushers.add(flush);
+  return () => void textFlushers.delete(flush);
+}
+
+/**
+ * Resolve once every typed character is on the live document: flush editors,
+ * then wait for tracked edits, including any an edit queued as it finished.
+ */
+export async function settleTextEdits(): Promise<void> {
+  for (const flush of textFlushers) flush();
+  while (textWork.size) await Promise.allSettled([...textWork]);
+}
+
 /** Write every pending document into `sourceBytes`, as fresh refs. */
 function saveUnsaved(
   set: (partial: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => void,
