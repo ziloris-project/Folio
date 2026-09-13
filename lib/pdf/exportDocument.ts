@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor } from "@/lib/store";
+import { settleTextEdits, useEditor } from "@/lib/store";
 import { downloadBlob } from "@/lib/utils";
 
 /**
@@ -18,6 +18,11 @@ export async function exportPdf(opts?: {
   pageIds?: string[];
   suffix?: string;
 }): Promise<string> {
+  // Typed text is applied a frame or more after the keystroke, and a commit can
+  // still be running from the blur that clicking Export just caused. Both have
+  // to land on the live document before it is saved below, or the file would
+  // silently miss the last words typed.
+  await settleTextEdits();
   const { buildPdf } = await import("@/lib/pdf/save");
   const { getPdfiumDoc } = await import("@/lib/pdf/pdfium/registry");
   const { pages, sources, fileName } = useEditor.getState();
