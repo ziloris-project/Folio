@@ -91,18 +91,29 @@ export function paragraphAt(objects: PageObject[], index: number): Paragraph | n
   if (at < 0) return null;
 
   const lines = [candidates[at]];
-  let leading: number | null = null;
+  let leading: number | null = tighterStep(candidates, at);
 
-  // Walk down, then up, from the edited line. Establishing the leading from the
-  // first accepted step and holding later steps to it is what stops a paragraph
-  // running on into the next one.
+  // Walk down, then up, from the edited line. Holding every step to one leading
+  // is what stops a paragraph running on into the next one.
+  //
+  // That leading is seeded from the closer of the two neighbours rather than
+  // from whichever step the walk happens to take first. On the last line of a
+  // paragraph the first step down is the gap to the next paragraph, which is
+  // still within reach of a line step whenever paragraphs are set only a little
+  // apart (every imported .docx and .rtf is: a line and a bit). Taken as the
+  // leading, it joined the two paragraphs and rejected the paragraph's own
+  // lines above, so editing a closing line re-wrapped it into the paragraph
+  // below at that paragraph's width. Space between paragraphs is never tighter
+  // than space within one, so the smaller step is the paragraph's own.
   for (let i = at + 1; i < candidates.length; i++) {
     if (!follows(lines[lines.length - 1], candidates[i], leading)) break;
+    if (tighterElsewhere(candidates, i, leading)) break;
     leading ??= baselineOf(lines[lines.length - 1]) - baselineOf(candidates[i]);
     lines.push(candidates[i]);
   }
   for (let i = at - 1; i >= 0; i--) {
     if (!follows(candidates[i], lines[0], leading)) break;
+    if (tighterElsewhere(candidates, i, leading)) break;
     leading ??= baselineOf(candidates[i]) - baselineOf(lines[0]);
     lines.unshift(candidates[i]);
   }
@@ -111,6 +122,38 @@ export function paragraphAt(objects: PageObject[], index: number): Paragraph | n
 
   const edited = lines.findIndex((o) => o.index === index);
   return { lines, target: edited, leading, columnWidth: columnOf(lines, edited) };
+}
+
+/**
+ * The baseline step from the line at `at` to whichever adjacent candidate is
+ * closer and could plausibly be its next or previous line, or null if neither
+ * could.
+ */
+function tighterStep(candidates: TextObject[], at: number): number | null {
+  const steps: number[] = [];
+  const below = candidates[at + 1];
+  const above = candidates[at - 1];
+  if (below && follows(candidates[at], below, null)) {
+    steps.push(baselineOf(candidates[at]) - baselineOf(below));
+  }
+  if (above && follows(above, candidates[at], null)) {
+    steps.push(baselineOf(above) - baselineOf(candidates[at]));
+  }
+  return steps.length ? Math.min(...steps) : null;
+}
+
+/**
+ * Whether the line at `i` keeps a tighter rhythm with its other neighbour than
+ * `leading`, which makes it part of a more closely set block.
+ *
+ * The mirror image of seeding the leading from the tighter step. A one-line
+ * paragraph under a block only sees the gap above it, so that gap became its
+ * leading and pulled in the block's last line, whose own lines sit closer.
+ */
+function tighterElsewhere(candidates: TextObject[], i: number, leading: number | null): boolean {
+  if (leading === null) return false;
+  const own = tighterStep(candidates, i);
+  return own !== null && own < leading - LEADING_TOL * leading;
 }
 
 /**

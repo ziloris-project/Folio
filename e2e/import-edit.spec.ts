@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import {
+  appendText,
   commit,
   expectExportLoads,
   inspector,
@@ -64,5 +65,23 @@ test("edits a line of an imported document without doubling its spaces", async (
   }
   expect(textsOf(after)).toContain("Second paragraph here.");
   await expectExportLoads(page);
+  expect(traps).toEqual([]);
+});
+
+test("editing a paragraph's last line keeps it out of the next paragraph", async ({ page }) => {
+  const { traps, lines: before } = await openImported(page);
+  const [first, second, third, next] = before;
+  expect(next.text).toBe("Second paragraph here.");
+
+  await selectLine(page, third.text);
+  await appendText(page, " Done.");
+  await commit(page);
+
+  const after = (await readLayout(page)).filter((l) => l.text.trim());
+  // Paragraphs here sit a line and a bit apart. The gap below the closing line
+  // used to be taken for the paragraph's leading, which merged it into the
+  // paragraph below and re-wrapped both to that one's short line.
+  expect(textsOf(after)).toEqual([first.text, second.text, `${third.text} Done.`, next.text]);
+  expect(after[3].y).toBeCloseTo(next.y, 0);
   expect(traps).toEqual([]);
 });

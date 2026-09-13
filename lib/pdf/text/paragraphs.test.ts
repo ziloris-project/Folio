@@ -62,6 +62,26 @@ describe("paragraphAt", () => {
     expect(paragraphAt(objs, 2)?.lines.map((l) => l.text)).toEqual(["two a", "two b"]);
   });
 
+  it("keeps a paragraph's last line out of the paragraph below", () => {
+    // Paragraphs a line and a bit apart, the way the importer sets them. The gap
+    // below "one b" is within reach of a line step, so taking it as the leading
+    // joined "one b" to the next paragraph and cut it off from "one a".
+    const objs = [
+      ...block(["one a", "one b"], { top: 200, leading: 12 }),
+      ...block(["two a", "two b"], { top: 200 - 12 - 18, leading: 12, from: 2 }),
+    ];
+    expect(paragraphAt(objs, 1)?.lines.map((l) => l.text)).toEqual(["one a", "one b"]);
+    expect(paragraphAt(objs, 2)?.lines.map((l) => l.text)).toEqual(["two a", "two b"]);
+  });
+
+  it("does not borrow a closing line for a one-line paragraph below it", () => {
+    // The single line only sees the gap above it. Taken as a leading, that gap
+    // pulled in the last line of the block above, whose own lines sit tighter.
+    const objs = [...block(["one a", "one b"], { top: 200, leading: 12 }), line(2, "alone", 0, 170, 100)];
+    expect(paragraphAt(objs, 2)).toBeNull();
+    expect(paragraphAt(objs, 1)?.lines.map((l) => l.text)).toEqual(["one a", "one b"]);
+  });
+
   it("does not chain two columns into one paragraph", () => {
     // Same baselines, same leading, side by side. Only the lack of horizontal
     // overlap keeps these apart.
